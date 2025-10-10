@@ -1,0 +1,399 @@
+---
+title: "[Next.js] Page Router vs App Router 데이터 페칭 톺아보기"
+date: "2025-06-25"
+description: "Next.js의 페이지 생성 전략"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/next-js-page-render.webp"
+---
+
+## 👋 들어가며
+
+> 처음 Next.js의 Page Router와 App Router 방식을 공부하면서 가장 자주 잊어버린 개념이 데이터 패칭 방식입니다.
+> App Router는 `Server Component` 기반 `fetch()` 중심으로 모든 데이터 패칭 방식이 통합됐지만, 혹여나 Page Router 기반 프로젝트를 접할 일이 있을수도 있어 기록해두었습니다. 추가로 App Router 데이터 패칭 방식, 페이지 생성 전략 등 정리하고 싶은 요소를 정리했습니다.
+
+## Page Router vs App Router 요약 비교
+
+| 목적             | Page Router                     | App Router                                          |
+| ---------------- | ------------------------------- | --------------------------------------------------- |
+| SSR (서버사이드) | `getServerSideProps`            | fetch() + cache no-store 또는 dynamic force-dynamic |
+| SSG (정적 생성)  | `getStaticProps`                | 기본 fetch() 또는 dynamic force-static              |
+| ISR (재생성)     | `getStaticProps` + `revalidate` | fetch() + next revalidate N                         |
+| Dynamic Routes   | `getStaticPaths`                | `generateStaticParams()`                            |
+
+---
+
+## 예제 코드
+
+### ✅ SSR: 서버사이드 렌더링 (요청마다 새로 fetch)
+
+#### Page Router (pages/posts/[id].tsx)
+
+```tsx
+export async function getServerSideProps(context) {
+  const { id } = context.params;
+  const res = await fetch(`https://api.example.com/posts/${id}`);
+  const post = await res.json();
+
+  return {
+    props: {
+      post,
+    },
+  };
+}
+
+export default function PostPage({ post }) {
+  return <div>{post.title}</div>;
+}
+```
+
+#### App Router (app/posts/[id]/page.tsx)
+
+```tsx
+export default async function PostPage({ params }: { params: { id: string } }) {
+  const res = await fetch(`https://api.example.com/posts/${params.id}`, {
+    cache: "no-store",
+  });
+  const post = await res.json();
+
+  return <div>{post.title}</div>;
+}
+```
+
+### ✅ SSG: 정적 생성
+
+#### Page Router
+
+```tsx
+export async function getStaticProps() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+
+  return {
+    props: {
+      posts,
+    },
+    revalidate: false,
+  };
+}
+
+export default function PostsPage({
+  posts,
+}: {
+  posts: { id: number; title: string }[];
+}) {
+  return (
+    <div>
+      <h1>Posts</h1>
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id}>{post.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### App Router
+
+```tsx
+export default async function PostsPage() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+
+  return (
+    <ul>
+      {posts.map((p) => (
+        <li key={p.id}>{p.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### ✅ ISR: Incremental Static Regeneration (시간 단위 캐싱)
+
+#### Page Router
+
+```tsx
+export async function getStaticProps() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+
+  return {
+    props: {
+      posts,
+    },
+    revalidate: 60, // 60초마다 페이지 재생성
+  };
+}
+
+export default function PostsPage({
+  posts,
+}: {
+  posts: { id: number; title: string }[];
+}) {
+  return (
+    <div>
+      <h1>Posts (ISR)</h1>
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id}>{post.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### App Router
+
+```tsx
+export default async function PostsPage() {
+  const res = await fetch("https://api.example.com/posts", {
+    next: { revalidate: 60 }, // ISR 설정
+  });
+  const posts = await res.json();
+
+  return (
+    <div>
+      <h1>Posts (ISR)</h1>
+      <ul>
+        {posts.map((post: any) => (
+          <li key={post.id}>{post.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### ✅ Dynamic Routing: 여러 페이지 미리 빌드
+
+#### Page Router
+
+```tsx
+// pages/posts/[id].tsx
+export async function getStaticPaths() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+
+  const paths = posts.map((post: any) => ({
+    params: { id: post.id.toString() },
+  }));
+
+  return {
+    paths,
+    fallback: false,
+  };
+}
+
+export async function getStaticProps({ params }) {
+  const res = await fetch(`https://api.example.com/posts/${params.id}`);
+  const post = await res.json();
+
+  return {
+    props: {
+      post,
+    },
+  };
+}
+
+export default function PostPage({
+  post,
+}: {
+  post: { id: number; title: string };
+}) {
+  return (
+    <div>
+      <h1>{post.title}</h1>
+    </div>
+  );
+}
+```
+
+#### App Router
+
+```tsx
+// app/posts/[id]/page.tsx
+export async function generateStaticParams() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+
+  return posts.map((post: any) => ({
+    id: post.id.toString(),
+  }));
+}
+
+export default async function PostPage({ params }: { params: { id: string } }) {
+  const res = await fetch(`https://api.example.com/posts/${params.id}`);
+  const post = await res.json();
+
+  return (
+    <div>
+      <h1>{post.title}</h1>
+    </div>
+  );
+}
+```
+
+## ✅ App Router에서의 fetch 사용법
+
+App Router를 학습하면서 가장 헷갈렸던 부분 중 하나가 바로 `fetch()`의 동작 방식이었습니다.
+특히 개발 환경(dev)에서는 `fetch()`가 항상 새로 요청을 보내기 때문에 정적 생성(SSG)이 어떻게 작동하는지 직접 눈으로 확인하기 어려웠습니다.
+
+### `fetch()`의 기본 동작 (cache: 'auto')
+
+- **개발 모드 (`next dev`)**: 매 요청마다 fetch → SSR처럼 보임
+- **프로덕션 빌드 (`next build`)**:
+  - 정적인 페이지면 SSG로 한 번만 fetch
+  - **동적 요소가 있으면 감지되면 자동으로 SSR로 전환**
+
+그럼 동적 요소가 있으면 페이지 자체가 SSR로 자동 전환되는 동적 요소는 어떤게 있을까요?
+
+우선 빌드 시점에는 어떤 값을 넣을지 알 수 없기 때문에 Next.js는 자동으로 이 페이지 전체를 SSR로 처리합니다.
+즉, 사용자마다 완전히 다른 전체 HTML을 서버에서 실시간으로 그려서 내려줍니다. JSP 방식과 비슷한거 같네요
+
+**1. `cookies` 사용**
+
+```tsx
+import { cookies } from "next/headers";
+
+export default function HomePage() {
+  const cookieStore = cookies();
+  const token = cookieStore.get("accessToken");
+
+  return <div>Your token: {token?.value}</div>;
+}
+```
+
+`cookies()`는 사용자 요청마다 다른 값이기 때문에 정적 생성이 불가능 -> SSR 자동 처리
+
+**2. `headers` 사용**
+
+```tsx
+import { headers } from "next/headers";
+
+export default function Page() {
+  const userAgent = headers().get("user-agent");
+
+  return <p>Your user agent is {userAgent}</p>;
+}
+```
+
+`headers()` 역시 요청마다 달라지므로 SSR 자동 적용
+
+**3. `searchParams` 사용**
+
+```tsx
+export default function ProductsPage({
+  searchParams,
+}: {
+  searchParams: { keyword?: string };
+}) {
+  return <div>검색어: {searchParams.keyword}</div>;
+}
+```
+
+세가지 공통점은 요청마다 달라지는 데이터를 사용한다는 점입니다.
+
+---
+
+### dynamic 옵션
+
+App Router에서는 페이지 전체의 정적/동적 렌더링 방식을 선언적으로 지정할 수 있도록 `dynamic`이라는 설정을 제공합니다.
+
+```tsx
+// 페이지 전체를 동적으로 - SSR
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  const res = await fetch("https://api.example.com/posts");
+  const posts = await res.json();
+  return <div>{posts[0].title}</div>;
+}
+```
+
+| 값            | 설명                               |
+| ------------- | ---------------------------------- |
+| auto          | 기본값. 정적/동적 여부 자동 판단   |
+| force-static  | 정적으로 강제 생성 (빌드 타임 SSG) |
+| force-dynamic | SSR 강제. 요청마다 새로 렌더링     |
+
+하지만! 앞서 SSR이 자동 적용되는 예시는 정말 어쩔수 없는 상황입니다. Next.js는 어떤값이 생길지 모르니까요.
+이 방식은 정적 최적화의 장점을 모두 포기하고 JSP처럼 요청마다 서버에서 HTML을 렌더링하는 방식과 또 유사하다고 생각했습니다.
+
+✅ **써야 할 때 (정말 SSR이 필요한 경우)**
+
+- 사용자마다 완전히 다른 콘텐츠가 렌더링될 때 (ex. 로그인 사용자 정보, 권한 기반 뷰)
+- 요청마다 매번 API 응답이 달라지고 캐싱이 불가능한 경우
+- 민감한 개인정보나 토큰 기반 SSR이 반드시 필요한 경우
+
+❌ **피하는 게 좋은 경우**
+
+- 콘텐츠가 자주 바뀌지 않는 경우
+- 퍼포먼스 최적화가 중요한 페이지 (LCP, TTFB 신경 써야 할 때)
+- 단순히 일부 데이터만 실시간이면 → fetch에 cache no-store 옵션 사용으로 충분
+
+---
+
+여기서 점점 혼동이 오기 시작합니다. SSG고 뭐고 서버사이드 렌더링이고 순수한 리액트의 세계로 돌아가고 싶어집니다.
+개인적으로 혼동이 오는 부분을 정리해봤습니다.
+
+### ✅ 개념 비교: 전체 SSR vs 선택적 fetch SSR
+
+| 구분                 | 설명                                                                                                   | 결과                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| **페이지 전체 SSR**  | 페이지 컴포넌트 전체가 요청마다 **처음부터 서버에서 렌더링됨** (dynamic force-dynamic or cookies 사용) | 모든 렌더링을 SSR 방식으로 처리 |
+| **선택적 fetch SSR** | 특정 fetch()만 cache no-store로 설정해서 **해당 요청만 SSR처럼 동작**                                  | 페이지 자체는 SSG일 수 있음     |
+
+App Router에서는 `fetch`에 `cache: 'no-store'` 옵션을 사용하면 특정 요청만 실시간으로 처리할 수 있지만
+`dynamic = 'force-dynamic'`이나 `cookies` 등 동적 요소를 쓰면 페이지 전체가 SSR로 전환되어 성능과 캐싱 구조에 영향을 줄수 있겠다고 생각이 들었고 둘은 개념적으로 분리해서 이해해야 할 필요성을 느꼈습니다.
+점점 머리가 아파집니다. 그래도 정리해봤습니다.
+
+---
+
+### 1. 기본 전제: Next.js는 가능한 SSG를 우선으로 함
+
+```bash
+next build
+```
+
+- 이 시점에 가능한 모든 페이지는 정적 HTML로 미리 생성됨 (SSG)
+
+### 2. 하지만 특정 조건이면 → SSR(서버사이드 렌더링)으로 자동 전환
+
+SSR로 전환되는 경우
+
+- `cookies()` 사용
+- `headers()` 사용
+- `dynamic = 'force-dynamic'` 명시
+- 일부 `searchParams` (동적 처리 감지 시)
+
+**이 경우 빌드 시 생성 못 함 → 요청마다 서버에서 HTML 생성**
+
+### 3. fetch에 cache: no-store 옵션을 사용하면 해당 요청만 SSR처럼 처리함
+
+- 페이지 전체는 여전히 정적으로 만들어질 수 있음 (SSG 유지)
+- 해당 요청만 매번 API 요청해서 새로운 데이터 가져옴
+- **성능과 실시간성 사이의 절충안**
+
+| 상황                   | 처리 방식              | 설명                                      |
+| ---------------------- | ---------------------- | ----------------------------------------- |
+| 기본 fetch             | SSG                    | 빌드시 1회 API 호출 후 정적 페이지 생성   |
+| fetch + cache no-store | SSG + 선택적 SSR fetch | 페이지는 SSG, 특정 fetch만 SSR처럼 실시간 |
+| cookies(), headers()   | 자동 SSR               | 페이지 전체 SSR로 전환됨                  |
+| dynamic force-dynamic  | 강제 SSR               | 모든 요청을 SSR 처리                      |
+| dynamic force-static   | 강제 SSG               | 무조건 정적으로 빌드                      |
+
+## 마무리
+
+머리속에서 다소 애매모호했던 개념들이 정리될수 있었습니다.
+추후에 실무에서 Next.js를 잘 알고 제대로 써보고 싶습니다.
+
+---
+
+**참고 자료**
+https://nextjs.org/docs/app/getting-started/partial-prerendering#dynamic-rendering
+https://nextjs.org/docs/app/getting-started/fetching-data
+지피티 선생님

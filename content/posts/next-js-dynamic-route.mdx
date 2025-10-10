@@ -1,0 +1,145 @@
+---
+title: "Next.js API 라우트 - dynamic params 가져오기"
+date: "2025-07-09"
+description: "API 라우트 기능에서 dynamic params 관리"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+
+> 혼자 사이드 프로젝트를 개발하던 중 Next.js의 API 라우트 기능을 사용할 일이 생겼고
+> dynamic params가 필요한 상황이었다. 분명 예전에도 써본 기능인데 자꾸 params를 가져오지 못하는 문제 발생
+
+## 문제 상황 흐름
+
+```tsx
+import { getUserHistory } from "@/data/getUserHistory";
+import { formatTime } from "@/lib/time";
+
+export default async function UserHistory({ userId }: { userId: string }) {
+  const history = await getUserHistory(userId);
+
+  return (
+    // 생략
+
+```
+
+우선 해당 서버 컴포넌트에서 로그인한 유저의 아이디를 props로 받아 유저 아이디에 따른 `history` 라는 데이터를 불러올 예정이었다.
+
+```tsx
+// @/data/getUserHistory.ts
+"use server";
+export async function getUserHistory(userId: string) {
+  const res = await fetch(`${process.env.BASE_URL}/api/history/${userId}`, {
+    next: {
+      tags: ["history"],
+    },
+    credentials: "include",
+  });
+
+  const history = await res.json();
+  return history;
+}
+```
+
+단순히 미리 파둔 API 라우트에 fetch 요청을 하는 서버 함수였고 기능이 잘 동작하리라 생각했었다.
+
+## 문제 코드
+
+```ts
+// @/app/api/history/[userId]/route.ts
+import { db } from "@/db";
+import { historyTable } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+
+export async function GET({ params }: { params: { userId: string } }) {
+  const { userId } = params;
+
+  const history = await db
+    .select()
+    .from(historyTable)
+    .where(eq(historyTable.userId, parseInt(userId)))
+    .orderBy(desc(historyTable.start));
+
+  return NextResponse.json(history);
+}
+```
+
+이제 Next.js의 API 라우트 기능이 동작할 차례이다.
+dynamic params 처리로 받아온 `userId` 를 바탕으로 db에서 해당 데이터를 찾아 리턴하려했으나 데이터를 정상적으로 받아오지 못했다.
+처음에는 db 연동이 제대로 안되었나 생각했지만 `userId`에 콘솔을 찍어보니 값이 들어오지 않았다.
+
+## 해결 방법
+
+결론적으로 Next.js App Router 등의 route handler 함수 시그니처는 고정되어있는 형태이다.
+
+```tsx
+export async function GET(
+  request: NextRequest,
+  context: {
+    params: { userId: string };
+  }
+); // ...
+```
+
+내부에서 자동으로 매핑되기때문에 `req`가 생략되어 params를 제대로 찾지 못한것이었다.
+바보.....
+
+```tsx
+import { db } from "@/db";
+import { historyTable } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
+
+export async function GET(
+  _: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  const { userId } = params;
+
+  console.log("userId", userId);
+
+  const history = await db
+    .select()
+    .from(historyTable)
+    .where(eq(historyTable.userId, parseInt(userId)))
+    .orderBy(desc(historyTable.start));
+
+  console.log("history", history);
+
+  return NextResponse.json(history);
+```
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/c12676e0-c572-437d-bc7c-a17efd11177c/image.png)
+db에서 데이터를 잘 끄집어내왔다
+
+---
+
+추가로 콘솔에 `Error: Route "/api/history/[userId]" used params.userId. params should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis` 와 같은 warning이 뜬다.
+
+아마 Next.js 15 버전 이상부터 페이지 컴포넌트에 params를 받아올때 비동기식으로 접근하게 변경되었는데 동일한 이유의 경고같다.
+https://nextjs.org/docs/messages/sync-dynamic-apis
+
+```tsx
+import { db } from "@/db";
+import { historyTable } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
+
+export async function GET(
+  _: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
+) {
+  const { userId } = await params;
+
+  const history = await db
+    .select()
+    .from(historyTable)
+    .where(eq(historyTable.userId, parseInt(userId)))
+    .orderBy(desc(historyTable.start));
+
+  return NextResponse.json(history);
+}
+```
+
+이렇게 코드를 고치니 콘솔에 warning을 제거할수 있었다.

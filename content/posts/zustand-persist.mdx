@@ -1,0 +1,99 @@
+---
+title: "[React] Zustand persist 미들웨어 기능으로 웹 스토리지 간편하게 관리하기"
+date: "2025-08-07"
+description: "Zustand persist 미들웨어 기능으로 웹 스토리지 관리해보기"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/zustand-persist.webp"
+---
+
+> 전역 상태 관리 라이브러리를 사용하다 보면 브라우저를 새로고침해도 데이터가 유지됐으면 좋겠다는 생각을 하게 됩니다.
+> 이럴 때 유용하게 사용할수 있는 것이 바로 Zustand의 `persist` 미들웨어입니다.
+> `persist`를 사용하면 `localStorage`나 `sessionStorage` 같은 웹 스토리지를 통해 상태를 간편하게 저장하고 복원할 수 있게 됩니다.
+
+제가 원했던 기능은 비회원 사용자의 데이터 기록(GuestHistory)을 브라우저의 세션스토리지에 저장, 날짜가 바뀌면 자동 초기화 되는 구조를 만드는 것이었습니다. zustand의 힘을 빌려 정말 간단하게 구현이 가능했습니다.
+
+## 1. Zustand Store 코드
+
+```tsx
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+```
+
+우선 상태를 브라우저의 storage에 저장하기 위해 필요한 `persist` 미들웨어와 `createJSONStorage` 함수를 불러옵니다.
+
+```tsx
+// 전체 코드
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+
+export type GuestHistory = {
+  task: string;
+  description: string;
+  start: Date | null;
+  end: Date;
+  duration: number;
+};
+
+type GuestHistoryState = {
+  history: GuestHistory[];
+  createdDate: string | null;
+  addHistory: (item: GuestHistory) => void;
+  resetHistory: () => void;
+};
+
+export const useGuestHistoryStore = create(
+  persist<GuestHistoryState>(
+    (set, get) => ({
+      history: [],
+      createdDate: new Date().toISOString().split("T")[0],
+      addHistory: (item) => set({ history: [item, ...get().history] }),
+      resetHistory: () =>
+        set({
+          history: [],
+          createdDate: new Date().toISOString().split("T")[0],
+        }),
+    }),
+    {
+      name: "guest-history",
+      storage: createJSONStorage(() => sessionStorage),
+    }
+  )
+);
+```
+
+`GuestHistoryState`라는 타입으로 zustand로 만들 상태의 구조를 정의하고 `persist`로 래핑해주었습니다.
+내부에 `set`, `get` 상태 로직으로 상태 변경과 현재 상태 조회가 가능합니다.
+
+```tsx
+// ...
+{
+	name: "guest-history",
+	storage: createJSONStorage(() => sessionStorage),
+}
+```
+
+마지막에 storage 키 이름과 storage의 종류를 정해주기만 하면 됩니다. 저는 session storage를 사용 했습니다.
+
+## 2. 컴포넌트에서 사용
+
+실제로 컴포넌트에서 위에서 만든 zustand store를 가져와 필요한 상태나 함수를 호출해 사용하기만 하면 끝입니다.
+
+```tsx
+// ...
+const { history, createdDate, resetHistory } = useGuestHistoryStore();
+```
+
+```tsx
+// ...
+const { addHistory } = useGuestHistoryStore();
+```
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/ba067fbb-1613-43d3-bfde-e36e59cc8dcc/image.png)
+실제로 데이터를 추가하고 브라우저의 session storage를 확인해보면 지정해준 key값을 가진 전역 상태가 웹 storage에 추가된것을 확인할 수 있었습니다.
+
+---
+
+### 마치며
+
+이처럼 Zustand의 `persist` 미들웨어를 활용해 전역 상태를 웹 스토리지에 저장하고, 새로고침해도 상태를 쉽게 복원할 수 있었습니다.
+이렇게 하나씩 알아가다 보면 알아야 할게 참 많다는걸 또 실감합니다.
