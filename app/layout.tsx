@@ -12,9 +12,62 @@ const pretendard = localFont({
 
 export const metadata: Metadata = {
   title: "soonyong.devlog",
-  description: "프론트엔드 개발자 권순용의 개발 블로그",
+  description:
+    "프론트엔드 개발자 권순용의 개발 블로그입니다. React, Next.js, TypeScript 등 웹 개발 관련 지식과 경험을 공유합니다.",
+
+  metadataBase: new URL("https://kwonsoonyong-dev.vercel.app"),
+  keywords: [
+    "프론트엔드",
+    "개발 블로그",
+    "React",
+    "Next.js",
+    "TypeScript",
+    "JavaScript",
+    "웹 개발",
+    "개발자",
+    "권순용",
+    "soonyong",
+  ],
+
+  authors: [{ name: "권순용", url: "https://kwonsoonyong-dev.vercel.app" }],
+  creator: "권순용",
+  publisher: "권순용",
+
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "https://kwonsoonyong-dev.vercel.app",
+    siteName: "soonyong devlog",
+    title: "soonyong devlog",
+    description: "프론트엔드 개발자 권순용의 개발 블로그입니다.",
+    images: [
+      {
+        url: "",
+        width: 1200,
+        height: 630,
+        alt: "soonyong devlog",
+      },
+    ],
+  },
+
+  // 파비콘 및 아이콘
   icons: {
-    icon: "/public/images/favicon.png",
+    icon: "/images/favicon.png",
+    shortcut: "/images/favicon.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "https://kwonsoonyong-dev.vercel.app",
   },
 };
 

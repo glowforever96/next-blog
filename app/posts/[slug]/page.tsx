@@ -32,6 +32,40 @@ export async function generateMetadata({
     title: post.title,
     description: post.description,
     authors: [{ name: post.author }],
+    keywords: post.title.split(" ").concat(["개발", "프론트엔드", "블로그"]),
+    openGraph: {
+      type: "article",
+      locale: "ko_KR",
+      url: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+      siteName: "soonyong devlog",
+      title: post.title,
+      description: post.description,
+      publishedTime: post.date,
+      authors: [post.author],
+      images: [
+        {
+          url: post.thumbnail,
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
+    },
+
+    alternates: {
+      canonical: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
   };
 }
 
