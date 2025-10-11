@@ -1,0 +1,654 @@
+---
+title: "TanStack Start 프레임워크를 소개합니다 [2]"
+date: "2025-05-30"
+description: "TanStack의 새로운 프레임 워크 TanStack Start 베타버전 써보기"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/tanstack2.webp"
+---
+
+> 해당 포스트는 [[React] TanStack Start 프레임워크를 소개합니다 [1]](https://kwonsoonyong-dev.vercel.app/posts/tanstack-start-1) 에서 이어집니다!
+
+## 1. 시드 데이터 넣기
+
+무사히 Neon DB 세팅과 drizzle 스키마 세팅이 완료 되었다면, 실제 프로젝트에서 확인 해보기 위해 약간의 시드 데이터를 넣어주도록 하겠습니다!
+
+프로젝트 루트 경로에 있는 `db` 폴더에 해당 코드를 작성해 주었습니다.
+
+```ts
+// @/db/seed.ts
+import { postsTable } from "./schema";
+import { drizzle } from "drizzle-orm/neon-http";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const db = drizzle(process.env.DATABASE_URL!);
+
+const postsSeedData: (typeof postsTable.$inferInsert)[] = [
+  {
+    userName: "침착맨",
+    content: "빵애에요~",
+  },
+  {
+    userName: "이병건",
+    content: "응애에요~",
+  },
+  {
+    userName: "이말년",
+    content: "방애에요~",
+  },
+];
+
+async function main() {
+  await db.insert(postsTable).values(postsSeedData);
+}
+main();
+```
+
+앞서 정의된 테이블 객체 `postsTable` 덕분에 해당 테이블에 삽입 가능한 데이터 타입이 자동 추론 되는 모습입니다.
+
+다음으로는 해당 명령어를 터미널에서 입력해 `seed.ts` 파일을 실행시켜 줍니다.
+
+```
+npx tsx db/seed.ts
+```
+
+아무 응답이 없이 종료 되었다면 코드가 잘 실행되었다고 볼 수 있습니다.
+
+이제 다시 Neon DB 콘솔에 접속해 앞서 만들어둔 `posts` 테이블로 이동해보았습니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/0c223731-983e-4a89-ad0e-34bc9e5556df/image.png)
+테이블에 3개의 데이터가 잘 삽입되었습니다.
+
+## 2. Server Functions 써보기
+
+공식문서에 소개글을 간략히 요약해보았습니다.
+https://tanstack.com/start/latest/docs/framework/react/server-functions
+
+**1. URL이 노출되지 않음**
+
+- 일반 API Route는 고정된 `/api/... URL`을 가지지만,
+- Server Function은 공개 URL 없이 함수처럼 호출됨 → 보안성 높임
+
+**2. 어디서든 호출 가능**
+
+- `loaders`, `hooks`, `React 컴포넌트`, 심지어 클라이언트 코드에서도 호출 가능
+- 다만, 실제 실행은 서버에서 이뤄지며 클라이언트에서는 내부적으로 fetch로 요청
+
+**3. 서버 전용 기능 자유롭게 사용 가능**
+
+- request, headers, cookies, env 변수, DB 연결 등 모두 사용 가능
+- Next.js의 API Route처럼 완전한 서버 기능 제공
+
+**4. 함수처럼 직관적인 호출**
+
+- 내부적으로는 서버에 fetch 요청을 보내고 결과를 받음
+- 사용자는 fetch 코드 작성할 필요 없음
+
+서버 함수는 `createServerFn`이라는 함수로 정의할 수 있다고 합니다.
+간단하게 DB의 데이터를 가져오는 서버 함수를 작성해 보겠습니다.
+
+### 2-1. 전체 Posts 테이블 가져오기
+
+프로젝트 루트에 `data` 폴더에 `getPosts.ts` 파일을 작성해주었습니다.
+
+```ts
+// @/data/getPosts.ts
+export const getPosts = createServerFn({
+  method: "GET",
+}).handler(async () => {});
+```
+
+우선 서버 함수를 생성할 때 요청에 대한 HTTP 메서드를 옵션으로 지정할 수 있습니다.
+
+```ts
+method?: 'GET' | 'POST'
+```
+
+그리고 `handler()` 함수 안에 실제로 서버에서 실행될 로직을 정의해주면 됩니다.
+DB에 접근해 `posts` 데이터를 조회, 결과를 클라이언트에 return 해주는 간단한 코드를 작성해 주었습니다.
+
+```ts
+import { db } from "@/db";
+import { postsTable } from "@/db/schema";
+import { createServerFn } from "@tanstack/react-start";
+
+export const getPosts = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const posts = await db.select().from(postsTable);
+  return posts;
+});
+```
+
+다음으로는 실제 클라이언트에서 확인해보기 위해 앞서 만들어두었던 `posts` 페이지로 이동했습니다.
+
+```tsx
+// @/app/routes/posts/_post-layout.index.tsx
+import { getPosts } from "@/data/getPosts";
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/")({
+  component: RouteComponent,
+  loader: async () => {
+    const posts = await getPosts();
+    return {
+      posts,
+    };
+  },
+});
+
+function RouteComponent() {
+  return <div>Hello "/posts/_layout/"!</div>;
+}
+```
+
+추가로 `loader` 라는 함수를 정의해두었습니다.
+앞선 포스트에서 페이지 path param을 가져오기 위해 사용했던 함수였습니다.
+
+내부에서 `getPost()`를 실행해 `posts` 데이터를 반환 하도록 만들었습니다.
+
+---
+
+컴포넌트 내부에서 사용하기 위해서 마찬가지로 `useLoaderData()`라는 hook을 사용해 꺼내줍니다.
+역시 `TanStack Router`에서 제공하는 기능입니다.
+
+```tsx
+// ...
+function RouteComponent() {
+  const { posts } = Route.useLoaderData();
+
+  return (
+    <div className="p-4">
+      <h1 className="text-3xl">게시물 목록</h1>
+      <div className="flex flex-col gap-2 mt-4">
+        {posts.map((post) => (
+          <div key={post.id} className="flex flex-col gap-2 border-2 p-2">
+            <span>유저 이름: {post.userName}</span>
+            <span>내용: {post.content}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+Next.js의 Page Router의 `getServerSideProps` 쓰는 방법과 유사한듯 합니다.
+
+이제 `localhost:3000/posts`로 접속해보았습니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/5cdcee05-2e5e-44e6-8723-f8220b123b57/image.png)
+
+서버 함수 기능을 이용, Neon 데이터베이스에 접근해 `posts` 테이블 데이터를 성공적으로 가져올 수 있었습니다.
+
+### 2-2. 특정 Posts 가져오기
+
+다음으로는 앞서 만들어두었던 `/posts/$postId` 경로에서 `postId` 와 매칭되는 데이터를 가져오는 기능을 만들것입니다.
+
+`data` 폴더에 `getPostById.ts` 파일을 작성해주었습니다.
+
+```tsx
+// @/data/getPostById.ts
+import { createServerFn } from "@tanstack/react-start";
+
+export const getPostById = createServerFn({
+  method: "GET",
+})
+  .validator((data: string) => {
+    const postId = Number(data);
+    if (Number.isNaN(postId) || postId < 1) {
+      throw new Error("잘못된 접근입니다!");
+    }
+    return postId;
+  })
+  .handler(async ({ data }) => {});
+```
+
+handler 함수 작성 이전에 `validator` 함수를 사용했습니다.
+
+공식문서에 따르면 런타임에 입력 데이터의 유효성을 검사 하고 타입 안정성을 강화할 수 있다고 합니다.
+서버 함수 실행 이전에 입력의 타입이 올바른지 확인, 더욱 이해하기 쉬운 오류 메시지를 제공하는데 유용하다고 합니다.
+
+저는 간단히 Path Param에 들어오는 값이 유효한 값이 아닐경우 에러를 던지는 코드를 작성했습니다.
+
+유효한 값이면 검증된 `postId`를 반환하고, 이 값은 나중에 `.handler`에 전달됩니다.
+
+```tsx
+import { db } from "@/db";
+import { postsTable } from "@/db/schema";
+import { createServerFn } from "@tanstack/react-start";
+import { eq } from "drizzle-orm";
+
+export const getPostById = createServerFn({
+  method: "GET",
+})
+  .validator((data: string) => {
+    const postId = Number(data);
+    if (Number.isNaN(postId) || postId < 1) {
+      throw new Error("잘못된 접근입니다!");
+    }
+    return { postId };
+  })
+  .handler(async ({ data }) => {
+    const post = await db
+      .select()
+      .from(postsTable)
+      .where(eq(postsTable.id, data.postId))
+      .limit(1);
+
+    return post[0];
+  });
+```
+
+나머지 `handler` 함수 코드를 작성해주었습니다.
+
+반환된 data 안에 `postId` 가 있으므로, 이를 기반으로 DB에서 해당 ID를 가진 게시글을 조회하는 `drizzle-orm` 기반 코드 코드를 작성해주었습니다.
+
+---
+
+```tsx
+// @/app/routes/posts/_post-layout/$postId/index.tsx
+import { getPostById } from "@/data/getPostById";
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/$postId/")({
+  component: RouteComponent,
+  errorComponent: ({ error }) => {
+    return (
+      <div className="text-3xl text-muted-foreground">{error.message}</div>
+    );
+  },
+  loader: async ({ params }) => {
+    const post = await getPostById({ data: params.postId });
+    return {
+      post,
+      postId: params.postId,
+    };
+  },
+});
+
+function RouteComponent() {
+  const { post, postId } = Route.useLoaderData();
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl">{`/posts/${postId} 페이지 입니다!`}</h1>
+      <h2 className="text-2xl">게시글</h2>
+      <div className="flex flex-col gap-4 border-2 mt-3 p-4">
+        <span>유저 이름: {post.userName}</span>
+        <span>내용: {post.content}</span>
+      </div>
+    </div>
+  );
+}
+```
+
+그리고 `postsId` 인덱스 페이지로 돌아와, 마찬가지로 `loader` 함수를 사용해 조회한 데이터를 반환해줍니다.
+Path Param도 담아 반환 해주었습니다.
+
+추가로 errorComponent가 정의되었는데 `loader` 함수나 컴포넌트에서 에러 발생시 보여줄 fallback UI를 정의 할 수 있습니다.
+
+먼저 `localhost:3000/posts/2` 경로에 접속했습니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/cb85e8c2-301d-4d0c-941a-e558437b356d/image.png)
+
+반환된 데이터가 잘 나왔습니다!
+
+---
+
+`http://localhost:3000/posts/dfdsfdf` 같이 유효하지 않은 경로에도 접속했습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/2cad3915-a7c0-4613-af40-098843b94649/image.png)
+
+앞서 `validator` 함수에서 throw 된 에러가 캐치되어 에러 메시지를 볼수 있게 되었습니다.
+
+---
+
+```tsx
+// @/app/routes/posts/_post-layout.index.tsx
+
+// ...
+function RouteComponent() {
+  const { posts } = Route.useLoaderData();
+
+  return (
+    <div className="p-4">
+      <h1 className="text-3xl">게시물 목록</h1>
+      <div className="flex flex-col gap-2 mt-4">
+        {posts.map((post) => (
+          <Link
+            key={post.id}
+            to="/posts/$postId"
+            params={{ postId: post.id.toString() }}
+          >
+            <div className="flex flex-col gap-2 border-2 p-2">
+              <span>유저 이름: {post.userName}</span>
+              <span>내용: {post.content}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+다시 `posts` 인덱스 페이지로 돌아와 실제로 페이지 이동을 위한 `Link` 컴포넌트를 연결해주었습니다.
+
+Next.js의 `Link` 컴포넌트와 유사하지만 Path Param 전달 방식이 약간 다른것을 알 수 있습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/cdf35d12-a7ae-472f-b3fc-612b237898a5/image.png)
+
+세번째 post 데이터를 클릭했고, `Link` 컴포넌트의 작동까지 확인 할 수 있었습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/41317928-e7be-4726-b66b-8de983cfe1fe/image.png)
+
+### 2-3. Post 작성해 데이터 저장하기
+
+다음으로는 마찬가지로 서버함수 기능을 사용해 작성한 Post를 DB에 저장시키는 코드를 구현하겠습니다.
+
+실제 데이터 전송 코드 작성 이전에 간단한 유효성 체크 로직을 먼저 작성해주었습니다.
+
+먼저 data 폴더안에 `createPost.ts` 서버 함수를 작성했습니다.
+역시 Next.js의 `use server` 에서 서버 함수를 쓰듯이 서버 액션 함수를 정의하는 형식은 비슷한것 같습니다.
+
+```tsx
+// @/app/data/createPost.ts
+import { createServerFn } from "@tanstack/react-start";
+
+export const createPost = createServerFn({ method: "POST" })
+  .validator((data: FormData) => {
+    const name = data.get("userName")?.toString();
+    const content = data.get("content")?.toString();
+
+    if (!name || !content) {
+      throw new Error("필수값을 작성해주세요!");
+    }
+    return { name, content };
+  })
+  .handler(async ({ data }) => {});
+```
+
+그 다음은 클라이언트 코드를 작성해주었습니다.
+
+메인 페이지에 빠르게 마크업 작성을 완료하고 서버 함수에서 던져진 에러를 캐치해 클라이언트 단에 띄워주는 코드도 간단히 구현했습니다.
+
+```tsx
+// @/app/routes/index.tsx
+import { createPost } from "@/data/createPost";
+import { createFileRoute } from "@tanstack/react-router";
+import { FormEvent, useState } from "react";
+
+export const Route = createFileRoute("/")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+
+    try {
+      setErrorMsg("");
+      const res = await createPost({ data: formData });
+    } catch (err) {
+      if (err instanceof Error) {
+        setErrorMsg(err.message);
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 items-center">
+      <div>
+        <label>이름</label>
+        <input
+          name="userName"
+          className="border border-gray-300 rounded px-3 py-2 ml-2"
+        />
+      </div>
+      <div>
+        <label>내용</label>
+        <input
+          name="content"
+          className="border border-gray-300 rounded px-3 py-2 ml-2"
+        />
+      </div>
+      <button
+        type="submit"
+        className="w-fit px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      >
+        등록
+      </button>
+      <span className="text-red-500">{errorMsg && errorMsg}</span>
+    </form>
+  );
+}
+```
+
+유효하지 않은 값을 입력해 서버 함수를 실행 시켰고 역시 `validator` 함수에서 에러가 던져집니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/baea4d78-22bf-424a-834a-f576cb3d48b7/image.png)
+
+실제 클라이언트에도 서버에서 던져진 에러 메시지가 잘 담긴 모습입니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/4eebbb07-4659-4f66-be27-71fa5ba85ddc/image.png)
+
+---
+
+이제 빠르게 DB에 게시글을 저장하는 `handler` 함수를 작성하겠습니다.
+
+```tsx
+import { db } from "@/db";
+import { postsTable } from "@/db/schema";
+import { createServerFn } from "@tanstack/react-start";
+
+export const createPost = createServerFn({ method: "POST" })
+  .validator((data: FormData) => {
+    const name = data.get("userName")?.toString();
+    const content = data.get("content")?.toString();
+
+    if (!name || !content) {
+      throw new Error("필수값을 작성해주세요!");
+    }
+    return { name, content };
+  })
+  .handler(async ({ data }) => {
+    const newPost = await db
+      .insert(postsTable)
+      .values({
+        userName: data.name,
+        content: data.content,
+      })
+      .returning();
+
+    return newPost;
+  });
+```
+
+데이터 삽입이 완료되면 다시 클라이언트로 해당 row를 리턴해줍니다.
+
+---
+
+이제 작동을 확인하기전에 post 데이터 삽입이 성공하면 `posts` 페이지로 리다이렉트 시키는 코드를 빠르게 짜주었습니다.
+
+`TanStack Router`에서 제공하는 `useNavigate` 훅을 사용합니다.
+
+```tsx
+// @/app/routes/index.tsx
+// ...
+function RouteComponent() {
+  const [errorMsg, setErrorMsg] = useState("");
+  const navigate = useNavigate(); // useNavigate hook
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+
+    try {
+      setErrorMsg("");
+      const res = await createPost({ data: formData });
+      console.log(res);
+      navigate({ to: "/posts" }); // posts 페이지로 리다이렉트
+    } catch (err) {
+      if (err instanceof Error) {
+        setErrorMsg(err.message);
+      }
+    }
+  };
+
+// ...
+```
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/301058bb-9f9c-4e9c-afb1-1175270241ab/image.png)
+
+새 post 데이터를 작성했습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/cf0c8ccc-38f8-4302-8046-074f13062a0b/image.png)
+
+작성에 성공해 `posts` 페이지로 잘 리다이렉트 되었습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/68039625-bee1-4ba8-a052-700efc7d368a/image.png)
+
+Neon DB 콘솔에도 작성한 데이터가 잘 들어가있는 모습입니다.
+
+### 2-4. Post 데이터 삭제하기
+
+이번에는 특정 Post를 삭제하는 기능을 빠르게 만들어 보겠습니다.
+
+서버 함수를 사용해 data 폴더에 `deletePost.ts` 파일을 작성해 주었습니다.
+
+```ts
+// @/data/deletePost.ts
+import { db } from "@/db";
+import { postsTable } from "@/db/schema";
+import { createServerFn } from "@tanstack/react-start";
+import { eq } from "drizzle-orm";
+
+export const deletePost = createServerFn({ method: "POST" })
+  .validator((data: { postId: number }) => data)
+  .handler(async ({ data }) => {
+    await db.delete(postsTable).where(eq(postsTable.id, data.postId));
+  });
+```
+
+이제 `posts/$postId` 페이지 컴포넌트에서 방금 만든 `deletePost`를 실행시켜주면 끝입니다.
+마찬가지로 완료후 `posts` 페이지로 리다이렉트 됩니다.
+
+```tsx
+import { deletePost } from "@/data/deletePost";
+import { getPostById } from "@/data/getPostById";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/$postId/")({
+  component: RouteComponent,
+  errorComponent: ({ error }) => {
+    return (
+      <div className="text-3xl text-muted-foreground">{error.message}</div>
+    );
+  },
+  loader: async ({ params }) => {
+    const post = await getPostById({ data: params.postId });
+    return {
+      post,
+      postId: params.postId,
+    };
+  },
+});
+
+function RouteComponent() {
+  const { post, postId } = Route.useLoaderData();
+  const navigate = useNavigate();
+
+  const handleDeletePost = async () => {
+    await deletePost({
+      data: {
+        postId: Number(postId),
+      },
+    });
+    navigate({
+      to: "/posts",
+    });
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl">{`/posts/${postId} 페이지 입니다!`}</h1>
+      <h2 className="text-2xl">게시글</h2>
+      <div className="flex flex-col gap-4 border-2 mt-3 p-4">
+        <span>유저 이름: {post.userName}</span>
+        <span>내용: {post.content}</span>
+        <button
+          className="w-fit bg-red-400 p-4 text-white"
+          onClick={handleDeletePost}
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/51cc08ea-ad9a-405a-a779-9a5f787b66af/image.png)
+
+`localhost:3000/posts/1` 경로에서 해당 post를 삭제하겠습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/7746181e-1462-4cce-a92b-a5e4a6fe7cf2/image.png)
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/4ec8fe1d-a1c3-49f9-8912-cc65ae9cf05e/image.png)
+
+성공했다면 `post` 페이지로 리다이렉트 되었으며, id가 1이었던 데이터가 삭제된 화면과 Neon DB 콘솔을 확인해도 삭제가 잘 되었습니다.
+
+---
+
+## TanStack Start 프레임워크 느낀점
+
+찍먹이었지만 `TanStack Start`, 특히 서버 함수 기능을 사용하면서 느낀점은 다음과 같습니다.
+
+### **1. 서버 함수를 클라이언트에서 바로 import해서 사용**
+
+Next.js는 API 경로를 fetch 요청을 만들어야 했지만, `TanStack Start`는 클라이언트 코드에서 바로 함수 호출이 가능했습니다.
+
+```ts
+// TanStack
+const post = await createPost({ data });
+
+// Next.js
+const res = await fetch("/api/post", { method: "POST", body: formData });
+```
+
+fetch를 직접 다루지 않아 개발 경험이 상승하는 장점이 있는거 같습니다.
+
+API 라우트 기능을 제공하지 않는 것은 아닙니다. Next.js와 비슷한 방식으로 서버측 엔드포인트 생성이 가능합니다.
+https://tanstack.com/start/latest/docs/framework/react/api-routes
+
+### **2. 입력값 검증과 핸들러 로직을 하나로 구성**
+
+`validator`와 `handler`가 체이닝 방식으로 구성되어 코드가 모듈화되고 가독성이 참 좋다고 느꼇습니다.
+
+또한 `validator`에서 에러 발생 시 자동으로 클라이언트에 전달되므로 예외 처리 일관성이 높아지는 장점이 있었습니다.
+
+```ts
+createServerFn({ method: "POST" })
+  .validator(...) // 입력 검증
+  .handler(...)   // DB 처리
+```
+
+### **3. 타입 안정성**
+
+`validator`에서 명시적으로 타입 변환을 거친 후 `handler` 함수에 넘기기 때문에 안에서 `data.name`, `data.content` 같은 값들이 확실한 타입으로 보장되는 점이 간편했습니다.
+
+### **4. SSR 친화적**
+
+초기 데이터 로딩이 `loader` 함수 기반으로 서버에서 이루어지고, `createServerFn` 역시 서버에서 안전하게 실행되어 SSR 흐름에 잘 맞는 구조라고 느꼈습니다.
+페이지 진입 시 데이터가 바로 렌더링되어 사용자 경험이 향상됨을 기대할 수 있습니다.
+
+> 전체적으로 `TanStack Router`의 타입 시스템을 기반으로 구축되어 타입 안전한 API들을 제공한다는 점이 가장 큰 장점으로 느껴졌습니다.<br/>
+> 아직 실무에서 Next.js를 써본적은 없지만 학습 과정에서 page router/app router 등 구조적인 차이를 접하며 러닝 커브가 특히 있다고 느껴졌고, app router 방식에선 아예 다른 프레임워크처럼 느껴지기도 했습니다.
+> ![](https://velog.velcdn.com/images/boyfromthewell/post/ba4762a5-8e66-4c7d-b01e-6747df6a3684/image.png)
+> (챗 GPT도 공감했다...!)<br/>
+> 아직 `TanStack Start`는 베타 단계이지만 `TanStack Query`와 `Router` 등 검증된 라이브러리들을 바탕으로 탄탄하게 구성되어 있어 앞으로 Next.js의 대항마가 될 수 있을지 흥미롭습니다. React만 잘면 전체 앱을 구성할 수 있다는 철학이 담겨있는거 같기도 합니다.
+> 공식 문서에도 많은 예제 코드가 있어 구경해봐도 좋을것 같습니다!

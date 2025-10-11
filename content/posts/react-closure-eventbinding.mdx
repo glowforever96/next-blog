@@ -1,0 +1,265 @@
+---
+title: "React에서의 클로저와 이벤트 핸들러 함수 바인딩"
+date: "2025-05-26"
+description: "클로저야 감사하다"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/closure  .webp"
+---
+
+> (썸네일은 그 클로저 아닙니다)
+> 처음 호기심은 React에서 이벤트 핸들러를 바인딩 하는 두 가지 방식에서 시작되었습니다.
+> 개발하면서 별 생각 없이 썼던 패턴들이지만 어떤 성능의 차이를 미칠까 에서부터 시작되었습니다.
+
+```tsx
+function MyComponent() {
+  const [isClick, setIsClick] = useState(false);
+
+  return <button onClick={() => setIsClick(true)}>Click</button>;
+}
+```
+
+```tsx
+function MyComponent() {
+  const [isClick, setIsClick] = useState(false);
+
+  const handleClick = () => {
+    setIsClick(true);
+  };
+
+  return <button onClick={handleClick}>Click</button>;
+}
+```
+
+> 컴포넌트 외부에서 선언된 함수를 바인딩, 이벤트 핸들러에 익명함수를 직접 전달 했다는 두가지 차이만 존재하지만 리액트의 렌더링, 클로저, 성능 최적화 관점에서 중요한 차이가 있는것을 알게 되었습니다.
+
+## 클로저란?
+
+```tsx
+function outer() {
+  const name = "Kim";
+
+  return function inner() {
+    console.log(name); // 클로저: 외부 스코프 name 기억
+  };
+}
+
+const fn = outer(); // 여기서 outer()는 끝났지만
+fn(); // inner()는 여전히 name을 출력함
+```
+
+프론트엔드 면접 질문 단골 주제이며 많이 볼 수 있는 예제 코드입니다.
+클로저는 **어떤 함수가 외부 스코프의 변수에 접근하고 참조를 유지하는 현상**이라고 저 또한 달달 외운 기억이 있으며 React에서 왜 클로저가 뭐가 중요한데? 라는 생각을 가진적 또한 있습니다.
+
+공부를 하다보니 참 부끄러운 생각이었고 React의 함수형 컴포넌트는 클로저 위에 지어진 프레임워크 그 자체였으며 상태, 렌더링, 이벤트 핸들링, hooks 전부 클로저의 영향을 받고 클로저의 힘으로 작동하다는것을 깨달았습니다.
+
+```tsx
+function MyComponent() {
+  const [count, setCount] = useState(0);
+
+  const handleClick = () => {
+    console.log(count); // 클로저: 렌더링 시점의 count를 기억
+  };
+
+  return <button onClick={handleClick}>Click</button>;
+}
+```
+
+```tsx
+function MyComponent({ id }) {
+  const handleClick = () => {
+    console.log(id); // 클로저: 외부 스코프 변수 id를 참조
+  };
+
+  return <button onClick={handleClick}>Click</button>;
+}
+```
+
+이런 간단한 코드들도 React 함수형 컴포넌트에서는 렌더링마다 함수 전체가 재 실행되기 때문에, 그 내부의 모든 함수들은 렌더링 시점의 외부 변수를 (state, props)를 캡쳐한 클로저가 됩니다.
+
+```tsx
+return items.map((item) => (
+  <Item key={item.id} onClick={() => handleItemClick(item.id)} />
+));
+```
+
+이렇게 자주 접하는 패턴에서도 클로저를 확인할수 있었습니다.
+`() => handleItemClick(item.id)` 이 익명함수는 `item.id`를 사용하고 있습니다.
+`item`은 map의 콜백 함수 스코프에 있는 지역 변수이며, 이 익명함수는 자신이 선언된 스코프에 있는 변수 `item`을 기억하는 함수이므로 클로저라고 할 수 있습니다.
+
+## `onClick={handleClick}` vs `onClick={() => setIsClicked(true)}` 차이
+
+그럼 앞서 제가 호기심을 가졌던 두가지 방식도 모두 클로저 기반으로 작동합니다.
+
+```tsx
+function MyComponent() {
+  const [isClick, setIsClick] = useState(false);
+
+  return <button onClick={() => setIsClick(true)}>Click</button>;
+}
+```
+
+- 아예 인라인에서 새 함수(익명 함수) 를 선언하고 있습니다.
+- 이 익명 함수도 내부에서 `setIsClicked`를 참조하고 있으므로 역시 클로저입니다.
+
+```tsx
+function MyComponent() {
+  const [isClick, setIsClick] = useState(false);
+
+  const handleClick = () => {
+    setIsClick(true);
+  };
+
+  return <button onClick={handleClick}>Click</button>;
+}
+```
+
+- `handleClick`은 컴포넌트 안에서 정의된 함수지만, 내부에서 `setIsClicked`라는 외부 스코프 변수를 참조하므로 클로저입니다.
+
+두 방식 모두 렌더링마다 새로 함수가 생성된다는 공통점은 가지고 있습니다.
+
+하지만 `onClick={handleClick}`은 렌더링마다 새로 정의 되므로 자식 컴포넌트에 prop으로 넘긴다면 `useCallback`으로 메모이제이션이 필요할 수 있다는 점과 `onClick={() => ...}`은 렌더링마다 이 함수 자체가 새로 생성되기 때문에 memo된 자식 컴포넌트에 넘기면 불필요한 리렌더링의 원인이 될 수 있다는 차이도 알 수 있었습니다.
+
+### 클로저가 리액트에 맞는 이유
+
+우선적으로 React는 함수형 선언적 프로그래밍을 지향합니다.
+이 컴포넌트들은 렌더링 시점의 상태를 스냅샷처럼 캡쳐, 클로저는 이런 스냅샷을 가능하게 해주는 핵심 기술이라고 할 수 있습니다.
+
+**결론적으로 React에서 클로저가 문제가 되냐?**
+
+> **클로저는 문제가 아니라 순수한 특성 -> 어떻게 다루느냐** 에 따라 성능이 갈린다
+
+라는 것을 느낄수 있었습니다.
+
+## 개발하며 기억해야 할 것
+
+- 렌더링 마다 새로 만들어지는 함수는 클로저를 형성, props로 전달시 메모이제이션 최적화를 방해 할 수 있음
+- `setState(prev => ...)`와 같은 패턴 사용은 클로저로 인해 오래된 상태를 참조하는 문제를 회피하는 패턴 (최신 상태로 안전히 업데이트)
+- **클로저는 리액트의 "상태 기반 렌더링"을 가능하게 해주는 동작 원리**
+- `useCallback`, `useMemo` 같은 훅 사용으로 클로저 생성을 제어해줄수 있음
+
+## 예시: 상품 리스트와 클릭 핸들러 (with 클로저, useCallback, React.memo)
+
+구체적인 예제로 공부해봤습니다.
+
+```tsx
+import React, { useCallback, useState } from "react";
+
+const ProductItem = React.memo(({ product, onClick }) => {
+  console.log(렌더링 항목: ${product.name});
+  return (
+    <li>
+      <button onClick={onClick}>{product.name}</button>
+    </li>
+  );
+});
+
+function App() {
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null
+  );
+
+  const products = [
+    { id: "1", name: "사과" },
+    { id: "2", name: "바나나" },
+    { id: "3", name: "포도" },
+  ];
+
+  return (
+    <div>
+      <ul>
+        {products.map((product) => (
+          <ProductItem
+            key={product.id}
+            product={product}
+            onClick={() => setSelectedProductId(product.id)}
+          />
+        ))}
+      </ul>
+
+      <p>선택 항목: {selectedProductId ?? "없음"}</p>
+    </div>
+  );
+}
+
+export default App;
+```
+
+- `onClick`에 전달되는 함수는 각 상품마다 새롭게 생성되는 함수입니다.
+- 이 함수 내부에는 `product.id`를 참조하는 클로저가 생성
+- 각 버튼은 자신에게 해당되는 `product.id`를 기억하고 있는 함수를 가지게 되는 것 입니다.
+
+하지만 의도했던 `React.memo`와 클로저의 충돌이 발생하게 됩니다.
+
+이 코드에서 `ProductItem`은 `React.memo`로 감싸져 있지만 `onClick={() => setSelectedProductId(product.id)}` 이 함수는 매 렌더링마다 새로 만들어지는 클로저입니다.
+
+따라서 `React.memo`는 **props가 얕은 비교(shallow equal)로 달라졌다고 판단하고** -> **항상 다시 렌더링하게 됩니다.**
+예제에서도 memo가 작동하지 않고 해당 컴포넌트가 매번 렌더링 되는 것을 확인할 수 있었습니다.
+이는 메모이제이션이 무효화되는 패턴이며 성능 이슈가 발생할 수도 있습니다.
+
+### 해결 방법
+
+```tsx
+import React, { useCallback, useState } from "react";
+
+// 메모이제이션된 자식 컴포넌트
+const ProductItem = React.memo(
+  ({
+    product,
+    onClick,
+  }: {
+    product: { id: string; name: string };
+    onClick: (id: string) => void;
+  }) => {
+    console.log(렌더링 항목: ${product.name});
+    return (
+      <li>
+        <button onClick={() => onClick(product.id)}>{product.name}</button>
+      </li>
+    );
+  }
+);
+
+function App() {
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null
+  );
+
+  const products = [
+    { id: "1", name: "사과" },
+    { id: "2", name: "바나나" },
+    { id: "3", name: "포도" },
+  ];
+
+  // 렌더링마다 새로 만들지 않도록 useCallback 사용
+  const handleItemClick = useCallback((id: string) => {
+    setSelectedProductId(id);
+    console.log("클릭된 상품 id:", id);
+  }, []);
+
+  return (
+    <div>
+      <ul>
+        {products.map((product) => (
+          <ProductItem
+            key={product.id}
+            product={product}
+            onClick={handleItemClick} // 메모이제이션된 함수 전달
+          />
+        ))}
+      </ul>
+
+      <p>선택 항목: {selectedProductId ?? "없음"}</p>
+    </div>
+  );
+}
+
+export default App;
+```
+
+- `useCallback` 사용으로 함수가 컴포넌트 렌더링마다 새로 생성되지 않습니다.
+- `ProductItem` 컴포넌트는 props가 변경되지 않으면 재렌더링 되지 않으며 여기서 생성된 클로저 (`onClick(product.id)`) 는 컴포넌트 내부이기 때문에 memo 성능에 영향을 끼치지 않습니다.
+- 또한 이 클로저 덕분에 해당 product의 id를 정확히 사용 할 수 있게 되었습니다!
+- 또한 `setSelectedProductId`는 클로저의 영향을 받을수 있으나 이 경우는 안전하게 동작합니다.
+
+> 만약에 클로저가 없었다면 버튼마다 별도의 변수를 만들어 강제로 값을 기억시키거나, 클래스 기반 컴포넌트처럼 this 바인딩에 의존해야 했을 것입니다.
+> 클로저 덕분에 함수형 컴포넌트에서도 간결하고 직관적으로 상태와 값을 안전하게 유지하며 이벤트 핸들러를 구현할 수 있게 되었다고 생각합니다. 결론은 클로저 만세~

@@ -5,6 +5,7 @@ import { MDXComponents } from "@/components/mdx-components";
 import { formatRelativeDate } from "@/lib/date";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import rehypePrettyCode from "rehype-pretty-code";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -63,6 +64,15 @@ export default async function PostPage({
             parseFrontmatter: false,
             mdxOptions: {
               remarkPlugins: [remarkGfm, remarkBreaks],
+              rehypePlugins: [
+                [
+                  rehypePrettyCode,
+                  {
+                    theme: "one-dark-pro",
+                    keepBackground: true,
+                  },
+                ],
+              ],
             },
           }}
         />

@@ -22,14 +22,14 @@ export const MDXComponents = {
 
   code: (props: React.HTMLAttributes<HTMLElement>) => (
     <code
-      className="bg-gray-200 text-blue-400 px-1.5 py-1 rounded text-sm font-extrabold"
+      className="bg-gray-200 text-blue-400 px-1.5 py-1 rounded text-sm font-semibold"
       {...props}
     />
   ),
 
   pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
     <pre
-      className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4 [&_code]:bg-transparent [&_code]:text-inherit [&_code]:p-0 [&_code]:text-base"
+      className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4 [&_code]:bg-transparent [&_code]:text-inherit [&_code]:p-0 [&_code]:text-base [&_code]:font-medium"
       {...props}
     />
   ),

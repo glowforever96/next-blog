@@ -1,0 +1,649 @@
+---
+title: "TanStack Start 프레임워크를 소개합니다 [1]"
+date: "2025-05-13"
+description: "TanStack의 새로운 프레임 워크 TanStack Start 베타버전 써보기"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/tanstack1.webp"
+---
+
+> TanStack Query (구 React Query)로 유명한 TanStack에서 개발 중인 프레임워크로 타입 안전한 라우팅을 제공하는 **TanStack Router** 위에 구축된 풀스택 React 프레임워크라고 합니다.
+> 아직은 베타 버전이기에 실제 개발 환경에 사용하기는 무리가 있겠지만 Next.js와 여러모로 비슷한 부분이 많은거 같습니다.
+> 하지만 조금 더 'React'스러운 프레임워크를 지향하는거 같아 호기심에 직접 사용해 보며 구조와 기능을 탐색 해봤습니다.
+
+> _추가로 `Neon`과 `drizzleORM`을 사용해 서버사이드에서 데이터 접근, 전송도 구현 해보려합니다._
+
+[TanStack Start 공식문서 바로가기](https://tanstack.com/start/latest)
+
+공식문서가 자랑하는 주요 기능입니다.
+
+- SSR (서버 사이드 렌더링)
+- 스트리밍 렌더링
+- 서버 함수 / RPCs (Next.js의 서버 액션, API routes와 유사)
+- 풀스택 타입 안정성 보장
+
+# 1. 프로젝트 세팅🚀
+
+아직은 아쉽게도 손쉽게 프로젝트를 구축 가능한 CRA나 Create Next App 같은 CLI 명령어를 지원하지 않습니다.
+
+공식문서를 따라가보며 진행 해보겠습니다.
+
+우선 프로젝트를 시작할 폴더를 만들고 시작파일을 구성해줍니다.
+
+```
+mkdir my-tanstack-start-app
+cd my-tanstack-start-app
+npm init -y
+```
+
+## 1-1. tsconfig 파일 작성
+
+프로젝트에서 루트 경로에 tsconfig.json 파일을 작성해줍니다. 공식문서 예시를 그대로 가져왔습니다.
+계속해서 자랑하는것이 타입 안정성이기에 공식문서에도 TypeScript 사용을 강력하게 추천한다고 합니다.
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "target": "ES2022",
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+```
+
+절대 경로 사용을 위해 추가 옵션도 넣어줬습니다.
+
+## 1-2. 의존성 설치
+
+> _TanStack Start는 현재 Vinxi와 TanStack Router 위에서 동작하고 있으며, 설치 시 함께 필요합니다.
+> 하지만 1.0.0 정식 버전이 출시되면 Vinxi는 제거되고, 대신 Vite + Nitro 조합만으로 작동하게 됩니다. 즉, Vinxi는 일시적인 도구이며 곧 대체될 예정입니다. _
+> (공식문서의 글을 그대로 가져왔습니다)
+
+**⚙️ Vinxi가 뭔데? (+ChatGPT)**
+
+- Vinxi: SSR, streaming 등을 가능하게 해주는 Vite 기반 풀스택 서버 런타임
+- 현재 TanStack Start에서 SSR과 서버 함수 실행을 담당
+
+---
+
+```bash
+npm i @tanstack/react-start @tanstack/react-router vinxi
+```
+
+먼저 TanStack Start, TanStack Router, Vinxi를 설치합니다.
+
+```bash
+npm i react react-dom
+npm i -D @vitejs/plugin-react vite-tsconfig-paths
+```
+
+그 다음 React와 ReactDOM을 설치하고, Vite 리액트 플러그인들도 설치 해줍니다.
+
+```bash
+npm i -D typescript @types/react @types/react-dom
+```
+
+마지막으로 타입스크립트를 설치해줍니다.
+
+## 1-3. 설정 파일 수정
+
+**1. package.json 수정**
+
+```json
+{
+  // ...
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start"
+  }
+}
+```
+
+ES 모듈 방식을 사용하기 위해 `"type": "module"`로 바꿔주고, script 부분도 `vinxi` 명령어를 통해 개발 환경을 실행하도록 바꿔줍니다.
+
+**2. app.config.ts 파일 작성**
+
+```ts
+// app.config.ts
+import { defineConfig } from "@tanstack/react-start/config";
+import tsConfigPaths from "vite-tsconfig-paths";
+
+export default defineConfig({
+  vite: {
+    plugins: [
+      tsConfigPaths({
+        projects: ["./tsconfig.json"],
+      }),
+    ],
+  },
+});
+```
+
+## 1-4. 기본 템플릿 추가
+
+TanStack Start를 사용하기 위해 필수로 필요한 네가지 파일이 있습니다.
+
+> 1. 라우터 설정 파일
+> 2. 서버 진입점
+> 3. 클라이언트 진입점
+> 4. 앱의 루트 컴포넌트
+
+최종 구성이 완료되면 아래와 같은 폴더구조를 가진다고 합니다.
+
+```
+├── app/
+│   ├── routes/
+│   │   └── `__root.tsx`
+│   ├── `client.tsx`
+│   ├── `router.tsx`
+│   ├── `routeTree.gen.ts`
+│   └── `ssr.tsx`
+├── `.gitignore`
+├── `app.config.ts`
+├── `package.json`
+└── `tsconfig.json`
+```
+
+**1. 라우터 구성 파일 작성 (router.tsx)**
+TanStack Router의 동작을 정의하며 여기에서 기본적으로 프리로딩 기능부터 캐싱의 stale 상태까지 모든 설정을 할 수 있다고 합니다.
+
+```tsx
+// app/router.tsx
+import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+import { routeTree } from "./routeTree.gen";
+
+export function createRouter() {
+  const router = createTanStackRouter({
+    routeTree,
+    scrollRestoration: true,
+  });
+
+  return router;
+}
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: ReturnType<typeof createRouter>;
+  }
+}
+```
+
+여기서 `Cannot find module './routeTree.gen' or its corresponding type declarations.` 라는 에러가 잡힐텐데 프로젝트를 실행하면 해당 에러가 사라지기 때문에 무시하셔도 좋습니다.
+
+**2. 서버 엔트리 포인트 파일 작성 (ssr.tsx)**
+TanStack Start는 서버 사이드 렌더링 프레임워크이므로 이 라우터 정보를 서버 엔트리 포인트로 전달해야 한다고 합니다.
+
+```tsx
+// app/ssr.tsx
+import {
+  createStartHandler,
+  defaultStreamHandler,
+} from "@tanstack/react-start/server";
+import { getRouterManifest } from "@tanstack/react-start/router-manifest";
+
+import { createRouter } from "./router";
+
+export default createStartHandler({
+  createRouter,
+  getRouterManifest,
+})(defaultStreamHandler);
+```
+
+이 코드는 사용자가 특정 경로를 요청할 때 해당 경로에 대해 어떤 라우트와 로더를 실행해야 하는지 알 수 있도록 해준다고 합니다.
+
+**3. 클라이언트 엔트리 포인트 파일 작성 (client.tsx)**
+
+서버에서 라우트를 처리한뒤 클라이언트에서 JavaScript를 Hydration하는 과정이 필요합니다. 이를 위해 동일한 라우터 정보를 클라이언트 진입점에 전달하는 코드라고 합니다.
+
+```tsx
+// app/client.tsx
+/// <reference types="vinxi/types/client" />
+import { hydrateRoot } from "react-dom/client";
+import { StartClient } from "@tanstack/react-start";
+import { createRouter } from "./router";
+
+const router = createRouter();
+
+hydrateRoot(document, <StartClient router={router} />);
+```
+
+**4. 앱 루트 파일 작성**
+` app 폴더 -> routes 폴더 생성 -> __root.tsx`
+
+마지막으로 앱의 루트 컴포넌트를 만듭니다. 이 루트 파일은 애플리케이션의 모든 라우트의 진입 지점이며 하위 라우트를 감싸는 구조라고 합니다. Next.js의 루트 layout 파일과 비슷한 역할을 하는것 같습니다.
+
+```tsx
+// app/routes/__root.tsx
+import type { ReactNode } from "react";
+import {
+  Outlet,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      {
+        charSet: "utf-8",
+      },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1",
+      },
+      {
+        title: "TanStack Start Starter",
+      },
+    ],
+  }),
+  component: RootComponent,
+});
+
+function RootComponent() {
+  return (
+    <RootDocument>
+      <Outlet />
+    </RootDocument>
+  );
+}
+
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <html>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+```
+
+# 2. 라우트 세팅
+
+이제 프로젝트의 루트 페이지를 생성해보겠습니다.
+
+기본적으로 TanStack Router가 제공하는 라우팅 방식을 따라야 합니다.
+
+[TanStack Router 공식문서 바로가기](https://tanstack.com/router/latest)
+
+TanStack Router는 **폴더 기반 라우팅**, **코드 기반 라우팅** 두가지 라우팅 구조를 지원합니다.
+
+저는 Next.js의 app router 방식과 비슷해서 더 친숙했기에 폴더 기반 라우팅으로 라우트를 생성했습니다.
+**`app/routes` 폴더 아래 파일/폴더 구조에 따라 라우트가 자동으로 생성된다고 합니다.**
+
+`app 폴더-> routes 폴더 -> index.tsx` 빈 파일을 생성만 해줍니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/e59fe7b2-bff4-40fc-8068-0d0152885ca5/image.png)
+
+그리고 `npm run dev`로 개발 서버를 가동해봤습니다.
+
+```tsx
+//@app/routes/index.tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  return <div>Hello "/"!</div>;
+}
+```
+
+와!! 자동으로 페이지 컴포넌트를 생성해 주었습니다.
+또한 `routeTree.gen.ts` 라는 파일이 생성되기도 했습니다.
+
+> routeTree.gen.ts 파일은 TanStack Router에서 사용하는 **라우트 트리**를 자동으로 생성해주는 **자동 생성 파일(auto-generated file)**이라고 합니다.
+> 해당 파일은 TanStack Start를 실행할때 자동으로 생성되며 수동으로 파일을 수정하는것은 권장하지 않는다고 합니다.
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  return (
+    <div>
+      <h1>Hello TanStack Start!</h1>
+    </div>
+  );
+}
+```
+
+코드를 일부 수정한후 `localhost:3000` 에 접속해봤습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/04d35268-3243-4b16-b706-4ac8d0d6588f/image.png)
+저의 첫 TanStack Start 프로젝트가 잘 작동하는 모습입니다!
+
+## TailWind CSS 세팅
+
+추가적으로 스타일 라이브러리로 TailWind CSS를 사용하고 싶어 빠르게 세팅해보겠습니다.
+
+```bash
+npm install tailwindcss @tailwindcss/postcss postcss
+```
+
+그 다음 페이지 루트 경로에 `postcss.config.mjs` 파일을 작성해줍니다.
+
+```tsx
+export default {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+```
+
+다음으로 프로젝트의 app 폴더안에 `app.css` 파일을 작성해줍니다.
+
+```tsx
+// @/app/app.css
+@import "tailwindcss";
+
+```
+
+마지막으로 프로젝트의 루트 컴포넌트 파일에 해당 코드를 작성해줍니다
+
+```tsx
+import appCss from "@/app/app.css?url";
+```
+
+CSS 파일을 먼저 URL 문자열로 가져옵니다.
+
+```tsx
+// app/routes/__root.tsx
+import type { ReactNode } from "react";
+import {
+  Outlet,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
+
+import appCss from "@/app/app.css?url";
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      {
+        charSet: "utf-8",
+      },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1",
+      },
+      {
+        title: "TanStack Start Starter",
+      },
+    ],
+    links: [
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+    ],
+  }),
+  component: RootComponent,
+});
+// ....
+```
+
+가져온 스타일시트를 head() 함수 안의 links 배열에 추가해 `<head>` 태그를 구성해줍니다.
+
+## 추가 페이지 구성
+
+라우트 구성 방식은 TanStack Router 방식을 따릅니다.
+
+스타일 적용이 잘되나 확인해보기위해 추가로 페이지를 구성해 보겠습니다.
+`posts` 페이지를 만들고 해당 페이지에서만 나오는 레이아웃 컴포넌트를 만드려고 합니다.
+
+먼저 레이아웃 컴포넌트를 만들기 위해 `routes` 폴더 안에 추가로 `posts` 폴더를 만들고 폴더안에 `_post-layout.tsx` 파일을 작성해줍니다.
+**\_ 뒤에 파일이름은 자유롭게 지정해도 무방합니다.**
+
+```tsx
+//@app/routes/posts/_post-layout.tsx
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  return (
+    <>
+      <header className="w-full text-3xl text-blue-500 p-4 border-b-2 border-black">
+        Posts 페이지 헤더입니다!
+      </header>
+      <Outlet />
+    </>
+  );
+}
+```
+
+실제로 페이지 렌더링을 담당할 `Outlet` 컴포넌트도 필수로 넣어주어야합니다.
+
+그 다음으로 동일한 경로에 `_post-layout.index.tsx` 이름을 가지는 실제 `posts` 페이지의 인덱스 파일을 작성해줍니다.
+
+```tsx
+//@app/routes/posts/_post-layout.index.tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  return <div>Hello "/posts/_layout/"!</div>;
+}
+```
+
+물론 페이지 컴포넌트를 자동으로 생성해줍니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/49a84f9b-189b-468f-805b-7724453d7ad0/image.png)
+
+프로젝트의 `localhost:3000/posts` 경로로 접속해보면 헤더 레이아웃이 잘 설정되어있습니다.
+
+---
+
+## Path Params 사용
+
+그 다음으로는 Path Params를 사용하는 `posts` 페이지의 하위 페이지를 구성해보겠습니다.
+
+우선 `posts` 폴더 안에 `_post-layout` 폴더를 먼저 만듭니다.
+직전에 만든 레이아웃 파일과 폴더 이름이 매칭되면 해당 중첩된 페이지에서도 해당 레이아웃이 렌더링 됩니다.
+
+그 다음으로 하위에 `$postId` 폴더를 만들고 `index.tsx` 파일을 작성해 줍니다.
+
+조금은 복잡하지만 Next.js 라우팅 방식과 비슷해 적응하는데 어려움은 없었던 것 같습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/cb640327-0483-4a9e-8344-f6c075435f94/image.png)
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/$postId/")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  return <div>Hello "/posts/$postId/"!</div>;
+}
+```
+
+물론 해당 페이지를 담당하는 코드가 자동으로 작성 되었고 `localhost:3000/posts/123` 경로로 접속 해봤습니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/af03e838-7c53-4146-a94e-55994b3258d1/image.png)
+
+레이아웃까지 잘 렌더링 되었습니다.
+다음으로는 해당 페이지의 Path Param을 가져오겠습니다.
+
+TanStack Router가 제공하는 `useParams` 훅을 사용해 가져올수 있지만 또 다른 기능인 `loader` 함수를 사용해 비동기적으로 가져오도록 하겠습니다.
+`TanStack Router`에서 제공하는 기능으로 라우터 레벨에서 데이터를 preloading하는 함수이며 컴포넌트가 화면에 렌더링되기 전에 필요한 데이터를 백엔드나 서버 함수에서 가져오고 그 결과를 라우트 컴포넌트에서 사용할 수 있도록 한다고 합니다.
+
+우선 파일 상단에서 `loader` 함수를 작성해 줍니다.
+
+```tsx
+// @app/routes/posts/_post-layout/$postId/index.tsx
+export const Route = createFileRoute("/posts/_post-layout/$postId/")({
+  component: RouteComponent,
+  loader: async ({ params }) => {
+    return {
+      postId: params.postId,
+    };
+  },
+});
+
+//...
+```
+
+강력한 타입 지원 라우팅 덕분에 자동으로 타입 추론이 되어 간편했습니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/e86e26bd-6aef-46d1-b498-acb92f8d1860/image.png)
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/posts/_post-layout/$postId/")({
+  component: RouteComponent,
+  loader: async ({ params }) => {
+    return {
+      postId: params.postId,
+    };
+  },
+});
+
+function RouteComponent() {
+  const { postId } = Route.useLoaderData();
+  return <div>posts/{postId} 페이지입니다!</div>;
+}
+```
+
+이후 컴포넌트 내부에서는 TanStack Router가 제공하는 `useLoaderData` 훅을 사용해 loader 함수에서 반환한 postId 값을 불러올 수 있습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/713cb613-26a6-440b-b080-f97f46a10b6e/image.png)
+`localhost:3000/posts/123`에 접속해보면 해당하는 Path Param을 잘 가져온 모습입니다.
+
+loader 함수는 단순히 클라이언트에서만 실행되는 것이 아닌 SSR 환경에서 실행되기 때문에 초기 페이지 로딩 시점에 필요한 데이터를 미리 가져오는 기능도 구현이 가능합니다.
+
+# 3. 데이터베이스 설정
+
+서버 사이드 방식이기 때문에 DB에 직접 접근해 데이터를 불러오거나 전송하는 동작도 구현할 수 있습니다.
+이 부분은 이후에 다뤄볼 예정이지만 미리 프로젝트에 필요한 기본 세팅을 진행했습니다.
+
+## Neon DB 세팅
+
+공식 문서에서는 `Neon` 이라는 데이터베이스 제공자를 추천하고 있습니다.
+
+https://neon.tech/
+
+회원가입을 완료한뒤 새 프로젝트를 만듭니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/c4767c05-9554-437a-81f8-0552b576b7a8/image.png)
+
+프로젝트 이름만 설정해주고 모든 설정은 디폴트값으로 두었습니다.
+
+## drizzle ORM 세팅
+
+그 다음으로는 DB 스키마 작성을 위해 `drizzle` 이라는 TypeScript 기반의 SQL ORM을 세팅하겠습니다.
+
+https://orm.drizzle.team/docs/get-started
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/d75d9e35-acaa-4b84-b2b6-0d4fb0d011f2/image.png)
+
+Neon 버튼을 클릭한후 설명대로 그대로 진행하면 됩니다.
+
+### 1. 패키지 설치
+
+```bash
+npm i drizzle-orm @neondatabase/serverless dotenv
+npm i -D drizzle-kit tsx
+```
+
+### 2. 환경 변수 등록
+
+프로젝트 루트 경로에 `.env` 파일을 생성 후 환경 변수를 등록해주어야 합니다.
+
+우선 Neon 콘솔의 생성한 프로젝트 대쉬보드에서 상단의 Connect 버튼을 클릭 후 Connection String 값을 복사해주어 `env` 파일에 넣어줍니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/b029c17c-7574-4bdf-9e6d-2266148c1ff3/image.png)
+
+```
+DATABASE_URL = 'postgresql://neondb_owner:npg_...'
+```
+
+### 3. Drizzle ORM 데이터베이스 연결, 테이블 스키마 작성
+
+프로젝트 루트 경로에 `db` 폴더를 만들고 인덱스 파일을 작성해주었습니다.
+
+```ts
+// @/db/index.ts
+import { drizzle } from "drizzle-orm/neon-http";
+const db = drizzle(process.env.DATABASE_URL!);
+export { db };
+```
+
+그 다음으로는 데이터베이스 테이블을 실제로 생성하도록 테이블 스키마를 설정해야합니다.
+
+동일한 경로에 `schema.ts` 파일을 작성해주었습니다.
+
+```ts
+// @/db/schema.ts
+import { integer, pgTable, text } from "drizzle-orm/pg-core";
+
+export const postsTable = pgTable("posts", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  userName: text("user_name").notNull(),
+  content: text().notNull(),
+});
+```
+
+`posts` 이름을 가지는 테이블 입니다.
+다양한 스키마 정의 방식을 지원하지만 필요한 부분만 간단하게 사용했습니다.
+
+### 5. drizzle config 파일 작성
+
+마찬가지로 프로젝트 루트경로에 `drizzle.config.ts` 파일을 작성해주었습니다.
+
+```ts
+// @/drizzle.config.ts
+import "dotenv/config";
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  out: "./drizzle",
+  schema: "./db/schema.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+```
+
+모두 설정이 잘되었다면 해당 명령어를 터미널에서 입력합니다.
+
+```bash
+npx drizzle-kit push
+```
+
+데이터베이스에 스키마 변경사항을 적용하는 과정입니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/c0fa1361-e71f-472a-984b-513df6f2a0fd/image.png)
+
+다시 Neon 데이터베이스에 만들어둔 프로젝트 대시보드로 들어가보면 정의한 `posts` 테이블이 잘 들어 가있는 모습입니다!
+
+---
+
+> 포스팅이 너무 길어져 다음 포스팅에서 TanStack Start가 제공하는 `createServerFn` 같은 서버함수를 직접 사용해 데이터베이스에 접근, 데이터를 읽거나 전송하는 과정을 포스팅 해보려고 합니다.
+> 사실 지금까지의 과정은 TanStack Router가 제공하는 기능을 사용해보거나 세팅하는 자잘한 과정이 전부였기에 추후에 더 다뤄보도록 하겠습니다.
+> 개인적으로 TanStack Router도 처음 접해봤기에 새로운 걸 알아가는건 언제나 흥미로운것 같습니다!

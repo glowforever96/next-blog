@@ -1,0 +1,117 @@
+---
+title: "React 19 forwardRef hook 지원 중단"
+date: "2025-03-13"
+description: "forwardRef 안녕"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/forwardRef.webp"
+---
+
+> React 19부터는 forwardRef가 없어도 함수형 컴포넌트에서 ref를 직접 전달할 수 있도록 변경 되었다고 한다.
+
+forwardRef는 부모 컴포넌트에서 선언한 ref 변수를 자식 컴포넌트에 props로 전달해 자식 컴포넌트의 DOM 요소를 부모 컴포넌트에서 조작하기 위한 훅이었다.
+
+자주 사용하는 훅은 아니었지만 사용하기가 조금은 불편했었다
+
+```tsx
+import { useRef } from "react";
+import Input from "./components/Input";
+
+function App() {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onClick = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  return (
+    <div>
+      <Input ref={inputRef} text="input" />
+      <button onClick={onClick}>Focus</button>
+    </div>
+  );
+}
+
+export default App;
+```
+
+```tsx
+// Input.tsx
+import { forwardRef } from "react";
+
+interface InputProps {
+  text: string;
+}
+
+const Input = forwardRef<HTMLInputElement, InputProps>(({ text }, ref) => {
+  return (
+    <>
+      <label>{text}</label>
+      <input type="text" ref={ref} />
+    </>
+  );
+});
+
+export default Input;
+```
+
+input 태그의 DOM을 조작해 부모 컴포넌트에서 input 태그에 focus 하기 위한 간단한 코드 지만, 함수형 컴포넌트를 forwardRef로 감싸줘야하고 타입스크립트를 같이 쓰고 있다면 제네릭을 활용해 ref와 props의 타입을 명확하게 지정해야 한다.
+
+보일러 플레이트 코드가 많아져 불편한점이 없지 않아 있었다.
+
+### React 19 이상 부터는?
+
+그냥 forwardRef를 지우고 props 넘겨주듯이 ref를 넘겨주면 끝이다!
+
+```tsx
+import { useRef } from "react";
+import Input from "./components/Input";
+
+function App() {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onClick = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  return (
+    <div>
+      <Input ref={inputRef} text="input" />
+      <button onClick={onClick}>Focus</button>
+    </div>
+  );
+}
+
+export default App;
+```
+
+```tsx
+// Input.tsx
+import { Ref } from "react";
+
+interface InputProps {
+  ref: Ref<HTMLInputElement>;
+  text: string;
+}
+
+const Input = ({ ref, text }: InputProps) => {
+  return (
+    <>
+      <label>{text}</label>
+      <input type="text" ref={ref} />
+    </>
+  );
+};
+
+export default Input;
+```
+
+에러없이 정상 작동하는 모습이다. 개꿀😁
+
+참고
+
+- [[번역] 리액트 19 forwardRef 지원 중단: 앞으로 ref를 전달하기 위한 표준 가이드](https://siosio3103.medium.com/%EB%B2%88%EC%97%AD-%EB%A6%AC%EC%95%A1%ED%8A%B8-19-forwardref-%EC%A7%80%EC%9B%90-%EC%A4%91%EB%8B%A8-%EC%95%9E%EC%9C%BC%EB%A1%9C-ref%EB%A5%BC-%EC%A0%84%EB%8B%AC%ED%95%98%EA%B8%B0-%EC%9C%84%ED%95%9C-%ED%91%9C%EC%A4%80-%EA%B0%80%EC%9D%B4%EB%93%9C-13c02855efd8)
+- https://react.dev/reference/react/forwardRef
