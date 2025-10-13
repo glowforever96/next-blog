@@ -6,6 +6,7 @@ import { formatRelativeDate } from "@/lib/date";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypePrettyCode from "rehype-pretty-code";
+import BackButton from "@/components/back-button";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -82,7 +83,7 @@ export default async function PostPage({
   }
 
   return (
-    <article className="max-w-5xl mx-auto">
+    <article>
       <header className="mb-8">
         <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
         <div className="flex items-center gap-4 text-gray-600">
@@ -111,6 +112,7 @@ export default async function PostPage({
           }}
         />
       </div>
+      <BackButton />
     </article>
   );
 }
