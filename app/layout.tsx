@@ -84,7 +84,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className={pretendard.className}>
         <Header />
-        <main className="py-[84px] max-w-6xl mx-auto px-4 md:py-[120px]">
+        <main className="py-[74px] max-w-6xl mx-auto px-4 md:py-[84px]">
           {children}
         </main>
         <Footer />

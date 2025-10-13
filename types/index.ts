@@ -5,6 +5,8 @@ interface BlogPost {
   description: string;
   author: string;
   thumbnail: string;
+  parentCategory: string;
+  tags: string[];
   content: string;
 }
 

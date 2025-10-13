@@ -1,27 +1,34 @@
 import { getAllPosts } from "@/lib/mdx";
 import PostCard from "@/components/post-card";
+import Sidebar from "@/components/sidebar";
 
-export default function Home() {
-  const posts = getAllPosts();
+interface HomeProps {
+  searchParams: Promise<{ c?: string; t?: string }>;
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const params = await searchParams;
+  const category = params.c;
+  const tag = params.t;
+
+  const posts = getAllPosts(category, tag);
+  let title = "All Posts";
+
+  if (category && tag) {
+    title = `${category} > ${tag}`;
+  } else if (category) {
+    title = category;
+  } else if (tag) {
+    title = tag;
+  }
 
   return (
     <div className="gap-0 md:flex md:gap-8">
-      <div className="flex">
-        <aside className="hidden md:block w-42">
-          <div className="sticky top-[92px]">
-            <div className="bg-gray-100 rounded-lg p-4">
-              <h3 className="font-bold mb-4">사이드바</h3>
-              <div className="space-y-2 text-sm">
-                <div>메뉴 1</div>
-                <div>메뉴 2</div>
-                <div>메뉴 3</div>
-              </div>
-            </div>
-          </div>
-        </aside>
-      </div>
+      <Sidebar />
       <div className="flex-1">
-        <h2 className="text-3xl font-bold mb-8">All Posts ({posts.length})</h2>
+        <h2 className="text-2xl font-bold mb-8">
+          {title} ({posts.length})
+        </h2>
         <div className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col">
           {posts.map((post) => (
             <PostCard key={post.slug} post={post} />

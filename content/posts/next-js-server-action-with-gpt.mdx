@@ -3,6 +3,8 @@ title: "[Next.js] ChatGPT가 분석해준 나의 전생 알아보기 토이 프�
 date: "2025-02-27"
 description: "서버 액션을 사용해보자"
 author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "SSR", "Server Action"]
 thumbnail: "/images/thumbnails/serveraction.webp"
 ---
 
@@ -290,8 +292,7 @@ messages 프로퍼티에서 role이 system인 객체의 content 값은 입력한
 
 그 다음 role이 user인 객체는 실제 유저가 질문할 내용을 담아 요청해주는 객체입니다.
 
-> **더 자세한 사용법**
-> https://platform.openai.com/docs/api-reference/chat/create
+> **더 자세한 사용법** > https://platform.openai.com/docs/api-reference/chat/create
 
 요청이 성공적으로 수행되면 `choices[0].message.content`에 접근해 응답 내용 텍스트를 얻을수 있습니다.
 
@@ -312,8 +313,7 @@ return {
 };
 ```
 
-> **더 자세한 사용법**
-> https://platform.openai.com/docs/api-reference/images
+> **더 자세한 사용법** > https://platform.openai.com/docs/api-reference/images
 
 처음에는 모델을 디폴트 값인 dall-e-2를 사용했는데 만족할만한 이미지를 생성해 주지않아 dall-e-3를 사용했습니다.
 

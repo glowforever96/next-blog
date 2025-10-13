@@ -6,7 +6,7 @@ import { getTime } from "date-fns";
 
 const postsDirectory = path.join(process.cwd(), "content/posts");
 
-export function getAllPosts(): BlogPost[] {
+export function getAllPosts(category?: string, tag?: string): BlogPost[] {
   const fileNames = fs.readdirSync(postsDirectory);
 
   const allPostsData = fileNames.map((fileName) => {
@@ -23,13 +23,26 @@ export function getAllPosts(): BlogPost[] {
       title: data.title,
       date: data.date,
       description: data.description,
+      parentCategory: data.parentCategory,
+      tags: data.tags,
       author: data.author,
       thumbnail: data.thumbnail,
       content,
     };
   });
 
-  return allPostsData.sort((a, b) => getTime(b.date) - getTime(a.date));
+  let filteredPosts = allPostsData;
+  if (category) {
+    filteredPosts = filteredPosts.filter(
+      (post) => post.parentCategory === category
+    );
+  }
+
+  if (tag) {
+    filteredPosts = filteredPosts.filter((post) => post.tags.includes(tag));
+  }
+
+  return filteredPosts.sort((a, b) => getTime(b.date) - getTime(a.date));
 }
 
 export function getPostBySlug(slug: string): BlogPost {
@@ -42,6 +55,8 @@ export function getPostBySlug(slug: string): BlogPost {
     title: data.title,
     date: data.date,
     description: data.description,
+    parentCategory: data.parentCategory,
+    tags: data.tags,
     author: data.author,
     thumbnail: data.thumbnail,
     content,
