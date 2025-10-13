@@ -1,13 +1,7 @@
 import { notFound } from "next/navigation";
-import { MDXRemote } from "next-mdx-remote/rsc";
 import { getAllPostSlugs, getPostBySlug } from "@/lib/mdx";
-import { MDXComponents } from "@/components/mdx-components";
-import { formatRelativeDate } from "@/lib/date";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import rehypePrettyCode from "rehype-pretty-code";
-import BackButton from "@/components/back-button";
-import Giscus from "@/lib/giscus";
+import PostHeader from "@/components/post-header";
+import PostBody from "@/components/post-body";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -79,36 +73,8 @@ export default async function PostPage({
 
   return (
     <article>
-      <header className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
-        <div className="flex items-center gap-4 text-gray-600">
-          <time dateTime={post.date}>{formatRelativeDate(post.date)}</time>
-        </div>
-      </header>
-
-      <div className="prose prose-lg max-w-none">
-        <MDXRemote
-          source={post.content}
-          components={MDXComponents}
-          options={{
-            parseFrontmatter: false,
-            mdxOptions: {
-              remarkPlugins: [remarkGfm, remarkBreaks],
-              rehypePlugins: [
-                [
-                  rehypePrettyCode,
-                  {
-                    theme: "one-dark-pro",
-                    keepBackground: true,
-                  },
-                ],
-              ],
-            },
-          }}
-        />
-      </div>
-      <BackButton />
-      <Giscus />
+      <PostHeader title={post.title} date={post.date} />
+      <PostBody content={post.content} />
     </article>
   );
 }
