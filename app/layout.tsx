@@ -70,6 +70,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://kwonsoonyong-dev.vercel.app",
   },
+  verification: {
+    google: "jcFfNouIs8upY3-l5s12hGarIC_M47SgvNKwvY7MS5Q",
+  },
 };
 
 export default function RootLayout({
