@@ -12,14 +12,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  // 메인 페이지 sitemap 엔트리
-  const mainEntry: MetadataRoute.Sitemap = [
+  // 정적 페이지들
+  const staticPages: MetadataRoute.Sitemap = [
     {
       url: "https://kwonsoonyong-dev.vercel.app",
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
     },
+    {
+      url: "https://kwonsoonyong-dev.vercel.app/about",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
   ];
-  return [...mainEntry, ...postEntries];
+
+  return [...staticPages, ...postEntries];
 }
