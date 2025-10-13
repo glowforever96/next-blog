@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypePrettyCode from "rehype-pretty-code";
 import BackButton from "@/components/back-button";
+import Giscus from "@/lib/giscus";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -22,12 +23,6 @@ export async function generateMetadata({
 }) {
   const { slug } = await params;
   const post = getPostBySlug(slug);
-
-  if (!post) {
-    return {
-      title: "포스트를 찾을 수 없습니다",
-    };
-  }
 
   return {
     title: post.title,
@@ -113,6 +108,7 @@ export default async function PostPage({
         />
       </div>
       <BackButton />
+      <Giscus />
     </article>
   );
 }

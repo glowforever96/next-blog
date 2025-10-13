@@ -17,8 +17,8 @@ export default function PostCard({ post }: { post: BlogPost }) {
             alt={post.title}
             fill
             priority
-            sizes="(max-width: 768px) 100vw, 256px"
-            className="w-full h-full object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 256px"
+            className="object-cover"
           />
         </div>
 

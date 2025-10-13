@@ -22,7 +22,7 @@ export default function Home() {
       </div>
       <div className="flex-1">
         <h2 className="text-3xl font-bold mb-8">All Posts ({posts.length})</h2>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col">
           {posts.map((post) => (
             <PostCard key={post.slug} post={post} />
           ))}
