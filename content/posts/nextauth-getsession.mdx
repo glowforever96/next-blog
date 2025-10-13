@@ -1,0 +1,127 @@
+---
+title: "[Next.js] NextAuth getSession 메서드 API routes에서 사용시 null return 하는 문제"
+date: "2025-02-12"
+description: "NextAuth 이슈 해결하기"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/nextauth.webp"
+---
+
+> 결론적으로 말하자면 공식 문서에서 서버 사이드는 getSession 메서드 대신 getServerSession 메서드를 사용하는것을 추천한다. (하지만 이거 때문은 아니었음)
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/0f9e8034-39e3-4cd2-bb23-034a349185ac/image.png)
+
+### 공식문서 예제
+
+```ts
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth/[...nextauth]";
+
+export default async (req, res) => {
+  const session = await getServerSession(req, res, authOptions);
+  if (session) {
+    // Signed in
+    console.log("Session", JSON.stringify(session, null, 2));
+  } else {
+    // Not Signed in
+    res.status(401);
+  }
+  res.end();
+};
+```
+
+예제처럼 getServerSession을 사용하기 위해선 authOption을 분리해야 한다.
+
+### 나의 코드
+
+- authOptions를 분리
+
+```tsx
+// @/lib/auth-options.ts
+import { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+
+export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
+  providers: [
+    CredentialsProvider({
+      async authorize(credentials) {
+      /// ...
+    }),
+  ],
+};
+```
+
+- 기존의 api/auth/[...nextauth].ts 코드 변경
+
+```ts
+import { authOptions } from "@/lib/auth-options";
+
+export default NextAuth(authOptions);
+```
+
+- API routes handler 함수에서 getSession 대신 getServerSession 메서드 사용
+
+```ts
+// /api/user/change-password.ts
+import { authOptions } from "@/lib/auth-options";
+import { NextApiRequest, NextApiResponse } from "next";
+import { getServerSession } from "next-auth";
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "PATCH") return;
+
+  const session = await getServerSession(req, res, authOptions);
+  if (!session) {
+    res.status(401).json({ message: "not authenticated!" });
+    return;
+  }
+
+  /// ...
+}
+```
+
+해당 api routes handler는 인증된 사용자인지 getSession 메서드로 우선 체크한뒤 현재 사용중인 비밀번호를 db 상에서 체크 -> 맞다면 바꾸고 싶은 비밀번호로 바꿔주는 코드가 들어있다. 해당 로직은 내가 맞닥뜨린 이슈랑은 상관 없는것 같아 생략했다.
+
+인증된 사용자임에도 불구하고 getSession 메서드 사용후 session에 담긴 값이 자꾸 null로 찍혔다.
+
+**하지만 getServerSession 메서드를 사용해도 자꾸 null 값이 찍혔고, 터미널에 JWT_SESSION_ERROR.... jwt 복호화와 관련된 에러 로그가 찍혔다.**
+
+### .env.local에 환경 변수 추가
+
+또 결론적으로 환경 변수 NEXTAUTH_SECRET 를 설정하지 않아 발생한 문제 같았다.
+
+```ts
+// .env.local
+NEXTAUTH_SECRET = your_secret_key;
+```
+
+- auth-options 다시 수정
+
+```tsx
+// @/lib/auth-options.ts
+import { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+
+export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  providers: [
+    CredentialsProvider({
+      async authorize(credentials) {
+      /// ...
+    }),
+  ],
+};
+```
+
+이렇게 다시 작성해주니 getServerSession 메서드에서 세션 값을 제대로 가져올수 있었다.
+
+공식문서를 다시보니 서버 사이드에서도 getSession 메서드가 작동은 한다고 한다
+
+> _On the server side, **this is still available to use**, however, we recommend using getServerSession going forward ..._
+
+**NEXTAUTH_SECRET 환경변수가 없어 JWT 복호화가 실패해 발생했던 문제 같았다.**

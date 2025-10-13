@@ -10,8 +10,8 @@ export default function PostCard({ post }: { post: BlogPost }) {
       href={`/posts/${post.slug}`}
       className="bg-white rounded-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow"
     >
-      <article className="flex flex-col md:flex-row">
-        <div className="relative w-full md:w-64 aspect-video bg-gray-100">
+      <article className="flex flex-col lg:flex-row">
+        <div className="relative w-full lg:w-64 aspect-video bg-gray-100">
           <Image
             src={post.thumbnail}
             alt={post.title}

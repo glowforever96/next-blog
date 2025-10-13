@@ -1,0 +1,390 @@
+---
+title: "[Next.js] ChatGPT가 분석해준 나의 전생 알아보기 토이 프로젝트 (feat. 서버 액션)"
+date: "2025-02-27"
+description: "서버 액션을 사용해보자"
+author: "프론트엔드 개발자 권순용"
+thumbnail: "/images/thumbnails/serveraction.webp"
+---
+
+> 딱히 만들게된 이유는 없습니다. Next.js의 서버액션 기능을 사용해 보고 싶기도 하고 재미삼아 아주 간단한 토이프로젝트를 제작 해보게 되었습니다😂
+> Next 15 버전 (app router) 기준으로 만들었습니다.
+
+# 1. OpenAI API 키 발급, OpenAI 라이브러리 설치
+
+우선 OpenAI 플랫폼에서 API 키를 생성해야 합니다.
+https://platform.openai.com/settings/organization/api-keys
+약간의 과금이 발생 할 수도 있습니다. 저도 이것저것 해보다가 충전한 5달러를 전부 써버렸습니다ㅠㅠ (무료 크레딧을 제공했으나 이제 더는 제공하지 않는다고 합니다...)
+
+발급 받는 과정은 생략하겠습니다.
+
+OpenAI 라이브러리 사용을 위해 라이브러리도 설치 해주었습니다.
+
+```
+npm i openai
+```
+
+# 2. env에 환경 변수 등록
+
+프로젝트 최상단 위치에 env 파일을 생성 했습니다.
+
+```
+// .env.local
+OPEN_API_KEY = 발급 받은 키
+```
+
+> 서버 액션을 통해 접근할 것이기 때문에 NEXT_PUBLIC 접두사를 붙이지 않았습니다. 추가로 API 키 같은 민감한 환경변수는 해당 접두사를 붙이지 않는것이 좋다고 합니다. (클라이언트에서 접근이 가능하기 때문에 유출 될 위험)
+
+# 3. 화면 구현 및 서버 액션 실행 함수 작성
+
+```tsx
+// @/app/page.tsx
+"use client";
+import { createPastAction } from "@/action/createPastAction";
+import LoadingSpinner from "@/components/loading-spinner";
+import MyResult from "@/components/my-result";
+import UserForm from "@/components/user-form";
+import { useActionState } from "react";
+
+export default function Home() {
+  const [state, formAction, isPending] = useActionState(createPastAction, null);
+
+  return (
+    <div className="flex flex-col items-center justify-center">
+      <div className="text-xl font-bold m-3 text-black">
+        ChatGPT가 분석해준 나의 전생 알아보기⚡️
+      </div>
+      <UserForm
+        formAction={formAction}
+        isPending={isPending}
+        error={state?.error}
+      />
+      {isPending && <LoadingSpinner />}
+      {state?.desc && !isPending && (
+        <MyResult desc={state.desc} url={state.url as string} />
+      )}
+    </div>
+  );
+}
+```
+
+크게 유저 Form 영역, 로딩 상태 보여주는 스피너 컴포넌트, 결과를 보여주는 컴포넌트로 구성 되있습니다.
+
+리액트가 제공하는 useActionState라는 훅을 통해 서버 액션 결과물 상태를 관리할 예정입니다.
+
+## ✅useActionState란?
+
+리액트 서버 액션을 사용할 때 상태 관리와 함께 요청을 실행하는 훅입니다.
+Form과 같은 UI에서 서버 액션을 실행하고 그 결과를 상태로 저장할 수 있게 해준다고 합니다.
+
+### 사용법
+
+```tsx
+const [state, formAction, isPending] = useActionState(action, initialState);
+```
+
+- action: 내가 작성한 서버 액션 실행 함수
+- initialState: state의 초기값, useState 훅의 초기값 지정과 비슷하다고 생각하면 될 것 같습니다.
+
+### 나의 코드
+
+```tsx
+const [state, formAction, isPending] = useActionState(createPastAction, null);
+```
+
+- state: 서버 액션의 결과물 (따로 작성해둔 createPastAction 서버 액션 함수의 결과물이 담깁니다.)
+- formAction: 폼의 action 속성에 넣어서 서버 액션을 실행하는 함수 = createPastAction
+- isPending: 요청 중인지 여부 (boolean), 로딩 상태
+
+## 서버 액션 함수
+
+```tsx
+// /@/actions/createPastAction.ts
+"use server";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPEN_API_KEY,
+  dangerouslyAllowBrowser: true,
+});
+
+const CMD_TEXT =
+  "너는 전생을 봐주는 역할이야. 유저가 생년월일을 입력하면 한국의 역사상에서 실존했던 인물 중 한 명과 연관지어 전생을 알려줘. 응답에 내 생년월일을 언급은 안해도 되. 성별이 여성인 경우는 남자인 인물이 나오면 안되도록 고려해줘야해. 다양한 인물이 나오면 좋겠어. 이모지도 넣어도 되";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createPastAction(_: any, formData: FormData) {
+  const gender = formData.get("gender")?.toString();
+  const date = formData.get("date")?.toString();
+
+  if (!date || date.trim() === "" || date.length < 8) {
+    return { error: "정확한 생년월일을 입력 해주세요!" };
+  }
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    temperature: 1,
+    messages: [
+      {
+        role: "system",
+        content: CMD_TEXT,
+      },
+      {
+        role: "user",
+        content: `저는 전생에 어떤 한국의 역사 인물이었을까요? 생년월일은 ${date}, 성별은 ${gender}입니다.`,
+      },
+    ],
+  });
+
+  const characterDescription = response.choices[0].message.content;
+
+  const imageResponse = await openai.images.generate({
+    model: "dall-e-3",
+    prompt: `한국의 역사 인물과 관련된 이미지 생성해줘. ${characterDescription}.`,
+    n: 1,
+    quality: "hd",
+    size: "1024x1024",
+  });
+
+  return {
+    desc: characterDescription,
+    url: imageResponse.data[0].url,
+  };
+}
+```
+
+전체 서버 액션 함수 코드 입니다.
+
+```tsx
+"use server";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPEN_API_KEY, // 서버에서만 접근 가능
+  dangerouslyAllowBrowser: true, // 브라우저에서 사용 위함 (서버 액션 "use server" 내부에서 API를 호출하기 때문에 안전)
+});
+
+const CMD_TEXT =
+  "너는 전생을 봐주는 역할이야. 유저가 생년월일을 입력하면 한국의 역사상에서 실존했던 인물 중 한 명과 연관지어 전생을 알려줘. 응답에 내 생년월일을 언급은 안해도 되. 성별이 여성인 경우는 남자인 인물이 나오면 안되도록 고려해줘야해. 다양한 인물이 나오면 좋겠어. 이모지도 넣어도 되";
+```
+
+우선 서버 액션 사용을 위해 "use server" 선언을 해주어야 합니다.
+
+일반적인 클라이언트 https 요청 (fetch) 사용 대신 OpenAI의 공식 라이브러리를 통해 API 요청을 할 것입니다!!
+
+CMD_TEXT는 ChatGPT에게 역할을 부여하기 위한 텍스트입니다. 최대한 구체적으로 적어야 만족할만한 답변이 날아왔습니다.
+
+```tsx
+export async function createPastAction(_: any, formData: FormData) {
+  const gender = formData.get("gender")?.toString();
+  const date = formData.get("date")?.toString();
+```
+
+서버 액션으로 클라이언트에서 전달한 성별, 생년월일 데이터를 추출 할 수 있습니다.
+
+추가로 함수에 전달된 첫번째 인자는 원래 useActionState가 내부적으로 넘겨주는 값 (직전 state 값)이 전달 됩니다. 사용할 필요가 없어 \_ 처리를 해두었습니다.
+
+## 유저 Form 컴포넌트
+
+```tsx
+// /@/components/user-form.tsx
+interface UserFormProps {
+  formAction: (formData: FormData) => void;
+  isPending: boolean;
+  error: string | undefined;
+}
+
+export default function UserForm({
+  formAction,
+  isPending,
+  error,
+}: UserFormProps) {
+  return (
+    <form
+      action={formAction}
+      className="w-[100%] h-auto flex flex-col p-4 gap-8 justify-self-center shadow-lg rounded-lg"
+    >
+      <div className="text-xl">
+        <label htmlFor="gender" className="text-gray-600 font-semibold">
+          성별
+        </label>
+        <div className="flex gap-2 items-center mt-2">
+          {["남성", "여성"].map((text) => (
+            <label key={text} className="flex items-center gap-1 text-gray-700">
+              <input
+                type="radio"
+                name="gender"
+                value={text}
+                defaultChecked={text === "남성"}
+                className="size-4"
+              />
+              {text}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col text-xl">
+        <label htmlFor="date" className="text-gray-600 font-semibold">
+          생년월일
+        </label>
+        <input
+          placeholder="YYYY/MM/DD"
+          name="date"
+          className="border border-gray-300 rounded-md px-4 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+      // 에러 처리
+      {error && (
+        <span className="text-red-500 font-semibold text-sm">{error}</span>
+      )}
+      <button
+        disabled={isPending}
+        type="submit"
+        className="w-full py-2 text-lg font-semibold text-white bg-blue-500 rounded-md hover:bg-blue-600 active:bg-blue-700 transition-colors"
+      >
+        {isPending ? "분석 중..." : "분석하기"}
+      </button>
+    </form>
+  );
+}
+```
+
+props로 넘겨 받은 formAction 함수가 실행되면 form 내부의 name="gender", name="date" 속성을 가진 입력값들이 FormData 객체를 통해 서버 함수로 전달된다고 합니다.
+
+### 에러 처리
+
+```tsx
+if (!date || date.trim() === "" || date.length !== 8) {
+  return { error: "정확한 생년월일을 입력 해주세요!" };
+}
+```
+
+간단한 에러처리도 해주었습니다. 유효하지 않은 값을 입력시 해당 객체를 리턴해 state 값에 담깁니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/7f0afcda-20ed-4f18-a032-96cbad9e6f3e/image.png)
+
+### 전생 정보 요청, 이미지 생성
+
+입력 값이 유효하다면 OpenAI API로 전생 정보를 요청하고 응답을 받아옵니다.
+
+```tsx
+const response = await openai.chat.completions.create({
+  model: "gpt-4o",
+  temperature: 1,
+  messages: [
+    {
+      role: "system",
+      content: CMD_TEXT,
+    },
+    {
+      role: "user",
+      content: `저는 전생에 어떤 한국의 역사 인물이었을까요? 생년월일은 ${date}, 성별은 ${gender}입니다.`,
+    },
+  ],
+});
+
+const characterDescription = response.choices[0].message.content;
+```
+
+ChatGPT와 단순 대화하기 위한 API를 요청합니다.
+
+messages 프로퍼티에서 role이 system인 객체의 content 값은 입력한 값에 따라 ChatGPT에 미리 역할을 부여하는것이라고 합니다. 미리 적어둔 텍스트를 넣어주었습니다.
+
+그 다음 role이 user인 객체는 실제 유저가 질문할 내용을 담아 요청해주는 객체입니다.
+
+> **더 자세한 사용법**
+> https://platform.openai.com/docs/api-reference/chat/create
+
+요청이 성공적으로 수행되면 `choices[0].message.content`에 접근해 응답 내용 텍스트를 얻을수 있습니다.
+
+이제 이 값을 기반으로 다시 이미지 생성 모델을 통해 이미지를 요청했습니다.
+
+```tsx
+const imageResponse = await openai.images.generate({
+  model: "dall-e-3",
+  prompt: `한국의 역사 인물과 관련된 이미지 생성해줘. ${characterDescription}.`,
+  n: 1,
+  quality: "hd",
+  size: "1024x1024",
+});
+
+return {
+  desc: characterDescription,
+  url: imageResponse.data[0].url,
+};
+```
+
+> **더 자세한 사용법**
+> https://platform.openai.com/docs/api-reference/images
+
+처음에는 모델을 디폴트 값인 dall-e-2를 사용했는데 만족할만한 이미지를 생성해 주지않아 dall-e-3를 사용했습니다.
+
+요청이 잘 수행되면 data[0].url에 접근해 이미지 url을 얻을 수 있고 최종적으로 서버 액션함수에서 설명 텍스트와 이미지 url을 리턴 합니다.
+
+## 데이터 뿌려주기
+
+다시 메인 페이지 컴포넌트로 돌아왔습니다!!
+
+```tsx
+"use client";
+import { createPastAction } from "@/action/createPastAction";
+import LoadingSpinner from "@/components/loading-spinner";
+import MyResult from "@/components/my-result";
+import UserForm from "@/components/user-form";
+import { useActionState } from "react";
+
+export default function Home() {
+  const [state, formAction, isPending] = useActionState(createPastAction, null);
+
+  return (
+    <div className="flex flex-col items-center justify-center">
+      <div className="text-xl font-bold m-3 text-black">
+        ChatGPT가 분석해준 나의 전생 알아보기⚡️
+      </div>
+      <UserForm
+        formAction={formAction}
+        isPending={isPending}
+        error={state?.error}
+      />
+      {isPending && <LoadingSpinner />}
+      {state?.desc && !isPending && (
+        <MyResult desc={state.desc} url={state.url as string} />
+      )}
+    </div>
+  );
+}
+```
+
+요청이 성공적으로 수행된뒤 서버액션 함수에서 리턴한 객체가 state에 담기게 됩니다.
+![](https://velog.velcdn.com/images/boyfromthewell/post/bdcad440-0093-461f-b3c2-1f225976375b/image.png)
+
+이제 MyResult 컴포넌트에 해당 데이터를 전달해주었습니다.
+
+```tsx
+// @/components/my-result.tsx
+import Image from "next/image";
+
+export default function MyResult({ desc, url }: { desc: string; url: string }) {
+  return (
+    <div className="mt-2 p-4 bg-white shadow-md rounded-lg">
+      <p className="text-gray-700 text-xl font-medium">{desc}</p>
+      <div className="mt-4 flex justify-center">
+        <Image
+          src={url}
+          alt="결과 이미지"
+          width={400}
+          height={400}
+          className="rounded-md"
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/3d1d6d2f-7c15-40c3-8916-7027508e376e/image.png)
+
+> _OpenAI API와 리액트의 서버액션을 활용해 간단하고 재밌는 토이프로젝트를 만들수 있었습니다.
+> 서버액션을 통해 별도의 상태 관리 (useState, useEffect 등,,,,)가 필요없어 코드가 간결해졌다는 점이 마음에 들었습니다. 별도의 API 엔드포인트가 필요 없이 폼 데이터를 서버에서 바로 처리 가능하다는 점도 재미있었습니다.
+> 로딩 상태 또한 useActionState에서 바로 제공해주기에 로딩 UI를 쉽게 연결 가능하다는 점도 장점이 있는것 같습니다.
+> 잘못 전달한 내용이 있다면 지적 감사하겠습니다.🫡_
+
+> Github: https://github.com/boyfromthewell/my-past-life
