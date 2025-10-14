@@ -6,7 +6,7 @@ export default function Sidebar() {
 
   return (
     <div className="flex">
-      <aside className="hidden md:block w-42 border-r border-gray-200 pr-4">
+      <aside className="hidden md:block w-52 border-r border-gray-200 pr-8">
         <div className="sticky top-[92px]">
           <div className="space-y-2 text-sm">
             {Object.entries(sidebarData).map(([key, value]) => (
@@ -19,7 +19,7 @@ export default function Sidebar() {
                 <div className="flex flex-col gap-1">
                   {value.map((item) => (
                     <Link href={`/?c=${key}&t=${item.tag}`} key={item.tag}>
-                      <li className="ml-2 mb-0 text-muted-foreground text-xs list-none flex justify-between hover:text-blue-600 transition-colors">
+                      <li className="ml-2 mb-0 text-muted-foreground list-none flex justify-between hover:text-blue-600 transition-colors">
                         <span>{item.tag}</span> <span>{item.count}</span>
                       </li>
                     </Link>

@@ -9,20 +9,23 @@ export const MDXComponents = {
   ),
 
   h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h2 className="text-3xl font-semibold text-gray-800 mb-4 mt-6" {...props} />
+    <h2
+      className="text-3xl font-semibold text-gray-800 mb-4 mt-6 border-b-1 border-gray-200 pb-2"
+      {...props}
+    />
   ),
 
   h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h3 className="text-2xl font-medium text-gray-700 mb-3 mt-5" {...props} />
+    <h3 className="text-2xl font-semibold text-gray-800 mb-3 mt-5" {...props} />
   ),
 
   p: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
-    <p className="text-gray-700 leading-relaxed mb-4" {...props} />
+    <p className="text-gray-900 leading-relaxed mb-4" {...props} />
   ),
 
   code: (props: React.HTMLAttributes<HTMLElement>) => (
     <code
-      className="bg-gray-200 text-blue-400 px-1.5 py-1 rounded text-sm font-semibold"
+      className="bg-gray-100 text-blue-500 px-1.5 py-1 rounded text-sm font-semibold"
       {...props}
     />
   ),
@@ -36,21 +39,21 @@ export const MDXComponents = {
 
   blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
     <blockquote
-      className="border-l-4 border-blue-400 pl-4 italic text-gray-600 my-4"
+      className="border-l-4 border-blue-500 bg-blue-50 pl-5 py-3 my-6 text-gray-700 [&_p]:mb-0 "
       {...props}
     />
   ),
 
   li: (props: React.HTMLAttributes<HTMLLIElement>) => (
-    <li className="text-gray-700 mb-2" {...props} />
+    <li className="text-gray-700 mb-2 ml-6" {...props} />
   ),
 
   ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul className="list-disc list-inside mb-4 space-y-2" {...props} />
+    <ul className="list-disc mb-4 space-y-2 pl-5" {...props} />
   ),
 
   ol: (props: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol className="list-decimal list-inside mb-4 space-y-2" {...props} />
+    <ol className="list-decimal mb-4 space-y-2 pl-5" {...props} />
   ),
 
   table: (props: React.HTMLAttributes<HTMLTableElement>) => (
@@ -92,9 +95,9 @@ export const MDXComponents = {
     />
   ),
   hr: (props: React.HTMLAttributes<HTMLHRElement>) => (
-    <hr className="my-6 border-gray-300" {...props} />
+    <hr className="my-10 border-gray-200" {...props} />
   ),
   h4: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h4 className="text-xl font-medium text-gray-700 mb-3 mt-5" {...props} />
+    <h4 className="text-xl font-medium text-gray-800 mb-3 mt-5" {...props} />
   ),
 };
