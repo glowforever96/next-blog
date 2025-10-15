@@ -1,0 +1,361 @@
+---
+title: "[Next.js] MDX 기반 개발 블로그 구축하기"
+date: "2025-10-14"
+description: "나만의 개발 블로그를 만들어보자"
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "MDX", "shadcn/ui"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+
+> 주로 블로그 플랫폼 velog를 통해서 많은 인사이트를 얻곤 했습니다. <br/>어느 순간부터 AI로 생성한 듯한 게시물들과 특정 부트캠프 후기 게시글에 많이 피로감이 쌓이기도 했고, 볼거리가 많이 없어진 느낌이었습니다.<br/>그래서 그냥 만들게 되었습니다. 프론트엔드 개발자니깐요!
+
+## 기술 스택
+
+### Next.js
+
+이미 MDX 기반의 블로그 제작을 구상하고 있었습니다.
+Next.js가 제공하는 정적 빌드 기능을 활용하면 게시물을 빌드 시점에 미리 생성 가능하기 때문에 성능 측면에서 효율적이라고 생각했습니다.
+
+```
+npx create-next-app@latest
+```
+
+그 이후에는 입맛에 맞게 선택하시면 됩니다 (알죠?)
+
+### shadcn/ui
+
+`Tailwind` 기반의 UI 컴포넌트 라이브러리입니다. Next.js 프로젝트를 시작할 때마다 이제는 습관처럼 설치하게 되었습니다.
+우연히 알게 되었지만, `Tailwind` 기반이라 커스터마이징이 쉽고, 디자인도 깔끔해 자주 애용하게 되는것 같습니다.
+
+무엇보다도 설치와 사용이 간단합니다!
+https://ui.shadcn.com/docs/installation/next
+
+### MDX (next-mdx-remote)
+
+MDX는 마크다운 파일내에서 React 컴포넌트를 사용할수 있게 해주는 파일 형식입니다.
+또한 메타 데이터 삽입도 가능한게 장점입니다!
+
+처음에는 `next-contentlayer`를 사용해 MDX 파일을 처리하려 했으나 오래전부터 유지보수가 중단된 상태라 사용을 포기했습니다.
+대신 `next-mdx-remote`와 `gray-matter`를 조합해 통해 MDX 파일의 파싱과 렌더링을 구현했습니다.
+
+우선 필요한 패키지를 설치해줍니다.
+
+```
+npm install next-mdx-remote
+```
+
+```
+npm install gray-matter
+```
+
+> **(주의) Next 프로젝트 생성시에 번들러로 turbopack을 선택했다면 `next.config` 파일에 해당 코드를 추가해줍니다.**
+
+```ts
+// next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  transpilePackages: ["next-mdx-remote"],
+};
+
+export default nextConfig;
+```
+
+다음으로 프로젝트 루트 경로에 MDX 파일 저장을 위한 폴더를 만들고, 몇개의 mdx 파일을 작성해주었습니다.
+
+````mdx
+// @/content/posts/test-1.mdx
+
+---
+
+title: "테스트 포스트 1 - React Hooks 기초"
+date: "2025-10-13"
+description: "useState와 useEffect 기본 사용법"
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Hooks", "JavaScript"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+
+---
+
+## React Hooks란?
+
+React 16.8 버전부터 추가된 기능으로, 함수형 컴포넌트에서도 상태 관리와 생명주기 기능을 사용할 수 있게 해줍니다.
+
+### useState 예제
+
+```jsx
+import { useState } from "react";
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p>카운트: {count}</p>
+      <button onClick={() => setCount(count + 1)}>증가</button>
+    </div>
+  );
+}
+```
+
+### useEffect 예제
+
+// 생략...
+````
+
+포스트의 메타데이터 부분과 마크다운 부분으로 나눌수 있습니다.
+
+```
+---
+title: "테스트 포스트 1 - React Hooks 기초"
+date: "2025-10-13"
+description: "useState와 useEffect 기본 사용법"
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Hooks", "JavaScript"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+```
+
+우선 앞부분에 작성된 데이터는 **_메타데이터 (Front Matter)_**라고 부르며 앞서 설치한 `gray-matter`를 통해 해당 데이터를 읽어 객체 형태로 변환 할 것입니다.
+필요한 형식에 따라 자유롭게 작성해도 무방합니다!
+
+그리고 메타데이터 이후의 부분에는 우리에게 익숙한 마크다운 형식으로 작성이 가능합니다. 저는 기존 velog 포스트를 그대로 복붙하면 되서 이관하기가 용이했습니다.
+
+---
+
+#### 블로그 메인페이지 만들기
+
+다음으로는 메인페이지에서 사용할 포스트 리스트를 구성하기 위해 **MDX의 메타데이터**만을 반환해주는 유틸 함수를 작성해주었습니다.
+주요 과정은 주석으로 정리해두었습니다.
+
+```ts
+// @/lib/mdx.ts
+import fs from "fs";
+import path from "path";
+import matter from "gray-matter";
+import { BlogPost } from "@/types";
+import { getTime } from "date-fns";
+
+// MDX 파일들이 저장된 디렉토리 경로
+const postsDirectory = path.join(process.cwd(), "content/posts");
+
+export function getAllPosts(): BlogPost[] {
+  // 포스트 디렉토리의 모든 파일명을 배열로 가져오기
+  const fileNames = fs.readdirSync(postsDirectory);
+
+  // 각 파일을 순회하며 BlogPost 객체로 변환
+  const allPostsData = fileNames.map((fileName) => {
+    // 파일명에서 .mdx 확장자를 제거하여 slug 생성 (추후 포스팅 컨텐츠 페이지 URL에 사용)
+    const slug = fileName.replace(/\.mdx$/, "");
+    // 파일의 전체 경로 생성
+    const fullPath = path.join(postsDirectory, fileName);
+
+    const fileContents = fs.readFileSync(fullPath, "utf8");
+
+    // gray-matter로 frontmatter(메타데이터) 추출
+    const { data } = matter(fileContents);
+
+    return {
+      slug,
+      title: data.title,
+      date: data.date,
+      description: data.description,
+      parentCategory: data.parentCategory,
+      tags: data.tags,
+      author: data.author,
+      thumbnail: data.thumbnail,
+    };
+  });
+
+  return allPostsData.sort((a, b) => getTime(b.date) - getTime(a.date));
+}
+```
+
+이 과정을 거치면 내림차순으로 정렬된 포스트 메타데이터 객체 리스트가 반환되며, 이를 그대로 메인 페이지나 포스트 목록 컴포넌트에서 활용할 수 있습니다.
+
+```tsx
+// @/app/page.tsx
+import { getAllPosts } from "@/lib/mdx";
+import PostCard from "@/components/post-card";
+
+export default async function Home() {
+  const posts = getAllPosts();
+
+  return (
+    <div className="gap-0 md:flex md:gap-8">
+      <div className="flex-1">
+        <div className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col">
+          {posts.map((post) => (
+            <PostCard key={post.slug} post={post} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+저는 PostCard 라는 컴포넌트에 데이터를 내려주어 포스트 리스트를 보여주었습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/5b33ee84-5f7e-44e6-a928-125fb5b8e3dc/image.png)
+
+`http://localhost:3000`로 접속하면 나만의 첫 블로그 메인페이지를 만날 수 있었습니다!
+
+---
+
+#### 포스트 컨텐츠 페이지 만들기
+
+이제는 포스트의 실제 내용을 렌더링할 페이지를 만드려합니다.
+저는 Next.js의 다이나믹 라우트 기능을 활용해 `posts/[slug]` 형태의 라우트를 구성했습니다.
+
+그 다음 이전에 작성해둔 `mdx.ts` 파일에 유틸 함수 두가지를 추가로 작성해주었습니다.
+
+```tsx
+// @/lib/mdx.ts
+
+// 생략...
+
+export function getPostBySlug(slug: string): BlogPost {
+  const fullPath = path.join(postsDirectory, `${slug}.mdx`);
+  const fileContents = fs.readFileSync(fullPath, "utf8");
+
+  const { data, content } = matter(fileContents);
+
+  return {
+    slug,
+    title: data.title,
+    date: data.date,
+    description: data.description,
+    parentCategory: data.parentCategory,
+    tags: data.tags,
+    author: data.author,
+    thumbnail: data.thumbnail,
+    content,
+  };
+}
+
+export function getAllPostSlugs(): string[] {
+  const fileNames = fs.readdirSync(postsDirectory);
+  // 각 파일명에서 .mdx 확장자를 제거하여 slug만 추출
+  return fileNames.map((fileName) => fileName.replace(/\.mdx$/, ""));
+}
+```
+
+첫번째 함수인 `getPostBySlug`는 함수 인자로 다이나믹 라우트의 slug 값을 인자로 받아, 해당 포스트의 MDX 파일을 읽고 메타데이터와 본문 컨텐츠를 반환하는 역할을 합니다.
+이전 단계에서 작성했던 `getAllPosts` 함수와 마찬가지로 `gray-matter`를 사용해 메타데이터를 추출하고 `content`에는 실제 마크다운 본문 문자열을 담아 반환합니다.
+
+두 번째 함수인 `getAllPostSlugs`는 정적 페이지 생성을 위한 준비 과정으로, 정적 빌드 시 각 포스트의 slug 값을 가져오기 위해 작성되었습니다.
+이후 Next.js가 제공하는 `generateStaticParams` 함수를 통해 해당 slug 리스트를 기반으로 각 포스트의 정적 페이지를 실제로 생성할 예정입니다.
+
+```tsx
+// @/app/posts/[slug].tsx
+export async function generateStaticParams() {
+  const slugs = getAllPostSlugs();
+  return slugs.map((slug) => ({
+    slug,
+  }));
+}
+
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
+
+  if (!post) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <PostHeader title={post.title} date={post.date} />
+      <PostBody content={post.content || ""} />
+    </article>
+  );
+}
+```
+
+`generateStaticParams`를 통해 빌드 시점에 각 포스트 페이지를 미리 생성하도록 만들었습니다.
+**실제 빌드시에도 SSG 방식으로 빌드 되는것을 확인할 수 있습니다.**
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/55107a5f-fb94-4b49-86df-6f6a23098e60/image.png)
+
+그리고 렌더링 부분에서는 PostBody 컴포넌트에 본문 콘텐츠(MDX 내용)을 넘겨주었습니다.
+
+```tsx
+import { MDXRemote } from "next-mdx-remote/rsc";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import rehypePrettyCode from "rehype-pretty-code";
+import { MDXComponents } from "./mdx-components";
+
+export default function PostBody({ content }: { content: string }) {
+  return (
+    <div className="prose prose-lg max-w-none">
+      <MDXRemote
+        source={content}
+        components={MDXComponents}
+        options={{
+          mdxOptions: {
+            remarkPlugins: [remarkGfm, remarkBreaks],
+            rehypePlugins: [
+              [
+                rehypePrettyCode,
+                {
+                  theme: "one-dark-pro",
+                  keepBackground: true,
+                },
+              ],
+            ],
+          },
+        }}
+      />
+    </div>
+  );
+}
+```
+
+실제 포스트 컨텐츠 렌더링을 담당할 부분입니다.
+
+- `MDXRemote`
+  **Next.js 서버 컴포넌트 환경에서 MDX를 렌더링하기 위해 `next-mdx-remote/rsc` 경로에서 import해야 합니다. (필수)**
+  source 속성에는 실제 MDX 컨텐츠(content)를 전달합니다.
+
+- `remarkGfm`, `remarkBreaks`
+  GitHub Flavored Markdown(GFM)을 지원하기 위한 플러그인으로, 확장된 마크다운 문법을 사용할 수 있게 해줍니다.
+
+- `rehypePrettyCode`
+  코드 블록에 문법 하이라이팅을 적용해주는 플러그인입니다.
+
+**두 가지 플러그인은 필수가 아닙니다! 좀 더 이쁜 컨텐츠 렌더링을 위해 넣어두었습니다.**
+
+- `MDXComponents`
+  MDXComponents를 별도로 정의해두어 마크다운 내 특정 요소를 프로젝트 스타일에 맞게 커스텀 컴포넌트로 교체할 수 있습니다.
+  예시 코드를 살짝 첨부 해두었습니다.
+
+```tsx
+export const MDXComponents = {
+  h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h1
+      className="text-8xl font-extrabold text-red-600 border-b-2 border-red-600 pb-2"
+      {...props}
+    />
+  ),
+};
+```
+
+이제 실제로 특정 포스트 페이지에 접속해 컨텐츠 내용을 확인해보겠습니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/eb4f45a0-3979-4a26-89a2-31b6f596d47a/image.png)
+커스텀된 h1 태그와 함께 포스트 컨텐츠 페이지가 정상적으로 마크다운 문법에 맞게 잘 렌더링 되는것을 볼수 있었습니다.
+
+## 마치며
+
+Next.js 환경에서 MDX 기반 블로그를 생각보다 엄청 쉽게 구축할 수 있었습니다.
+다음 포스팅에선 `giscus`라는 오픈소스를 활용해 깃허브 기반 댓글 시스템을 만들어 보겠습니다!
