@@ -1,6 +1,7 @@
 import { getAllPosts } from "@/lib/mdx";
-import PostCard from "@/components/post-card";
+import { getSidebarData } from "@/lib/sidebar";
 import Sidebar from "@/components/sidebar";
+import PostCard from "@/components/post-card";
 
 interface HomeProps {
   searchParams: Promise<{ c?: string; t?: string }>;
@@ -12,6 +13,8 @@ export default async function Home({ searchParams }: HomeProps) {
   const tag = params.t;
 
   const posts = getAllPosts(category, tag);
+  const { sidebarData, categoryCounts } = getSidebarData();
+
   let title = "All Posts";
 
   if (category && tag) {
@@ -24,7 +27,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <div className="gap-0 md:flex md:gap-8">
-      <Sidebar />
+      <Sidebar sidebarData={sidebarData} categoryCounts={categoryCounts} />
       <div className="flex-1">
         <h2 className="text-2xl font-bold mb-8">
           {title} ({posts.length})

@@ -39,7 +39,7 @@ export const MDXComponents = {
 
   blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
     <blockquote
-      className="border-l-4 border-blue-500 bg-blue-50 pl-5 py-3 my-6 text-gray-700 [&_p]:mb-0 "
+      className="border-l-4 border-blue-500 px-5 py-3 my-6 text-gray-500 italic [&_p]:mb-0 bg-gray-50"
       {...props}
     />
   ),
@@ -89,7 +89,7 @@ export const MDXComponents = {
   img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="max-w-full md:max-w-2xl mx-auto  my-6"
+      className="max-w-full md:max-w-3xl lg:max-w-4xl mx-auto my-6"
       alt={props.alt || ""}
       {...props}
     />

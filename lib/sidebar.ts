@@ -1,13 +1,13 @@
-import { getAllPosts } from "@/lib/mdx";
+import { getAllPosts } from "./mdx";
 
-interface SidebarData {
+export interface SidebarData {
   [category: string]: {
     tag: string;
     count: number;
   }[];
 }
 
-function useSidebar() {
+export function getSidebarData() {
   const posts = getAllPosts();
 
   const sidebarData: SidebarData = {};
@@ -35,5 +35,3 @@ function useSidebar() {
 
   return { sidebarData, categoryCounts };
 }
-
-export default useSidebar;
