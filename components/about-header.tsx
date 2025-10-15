@@ -7,10 +7,15 @@ export default function AboutHeader() {
   return (
     <div className="flex gap-4 items-center justify-between flex-col-reverse md:flex-row pb-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-extrabold">SOONYONG KWON</h1>
-        <h2 className="text-lg font-bold text-gray-700">Frontend Developer</h2>
+        <h1 className="text-2xl font-extrabold text-foreground">
+          SOONYONG KWON
+        </h1>
+        <h2 className="text-lg font-bold text-muted-foreground">
+          Frontend Developer
+        </h2>
         <p className="text-muted-foreground flex items-center gap-1">
-          <MapPinIcon size={16} color="#6a7282" /> Seoul, Korea
+          <MapPinIcon size={16} className="text-muted-foreground" /> Seoul,
+          Korea
         </p>
         <p className="text-muted-foreground leading-relaxed my-2">
           사용자 경험에 진심인 주니어 프론트엔드 개발자 권순용입니다.
@@ -22,12 +27,12 @@ export default function AboutHeader() {
         <div className="flex gap-2 mt-2">
           <Button variant="outline" className="cursor-pointer" asChild>
             <Link href="https://github.com/glowforever96" target="_blank">
-              <Github color="#6a7282" />
+              <Github className="text-muted-foreground" />
             </Link>
           </Button>
           <Button variant="outline" className="cursor-pointer" asChild>
             <Link href="mailto:tnsdyd10@naver.com" target="_blank">
-              <MailIcon color="#6a7282" />
+              <MailIcon className="text-muted-foreground" />
             </Link>
           </Button>
         </div>

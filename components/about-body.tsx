@@ -51,7 +51,9 @@ export default function AboutBody() {
   return (
     <div className="mt-12 flex flex-col gap-8">
       <div>
-        <h2 className="text-2xl font-extrabold mb-6">Skills</h2>
+        <h2 className="text-2xl font-extrabold mb-6 text-foreground">
+          Have Used
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {skills.map((skill) => (
             <Card key={skill.category}>
@@ -63,7 +65,7 @@ export default function AboutBody() {
                   {skill.items.map((item) => (
                     <span
                       key={item}
-                      className="px-3 py-1 bg-gray-100 text-muted-foreground font-semibold rounded-full text-sm"
+                      className="px-3 py-1 bg-muted text-muted-foreground font-semibold rounded-full text-sm"
                     >
                       {item}
                     </span>
@@ -74,9 +76,11 @@ export default function AboutBody() {
           ))}
         </div>
       </div>
-      <div className="h-px bg-gray-200 my-8" />
+      <div className="h-px bg-border my-8" />
       <div>
-        <h2 className="text-2xl font-extrabold mb-6">Experience</h2>
+        <h2 className="text-2xl font-extrabold mb-6 text-foreground">
+          Experience
+        </h2>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -99,9 +103,11 @@ export default function AboutBody() {
           </CardContent>
         </Card>
       </div>
-      <div className="h-px bg-gray-200 my-8" />
+      <div className="h-px bg-border my-8" />
       <div>
-        <h2 className="text-2xl font-extrabold mb-6">EDUCATION</h2>
+        <h2 className="text-2xl font-extrabold mb-6 text-foreground">
+          EDUCATION
+        </h2>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">

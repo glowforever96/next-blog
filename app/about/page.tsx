@@ -44,7 +44,7 @@ export default function AboutPage() {
   return (
     <section className="w-full max-w-screen-lg mx-auto px-4 sm:px-6 md:px-8 py-8">
       <AboutHeader />
-      <div className="h-px bg-gray-200 my-8" />
+      <div className="h-px bg-border my-8" />
       <AboutBody />
     </section>
   );

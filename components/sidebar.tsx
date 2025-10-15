@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SidebarData } from "@/lib/sidebar";
 import { useSidebarStore } from "@/store/sidebar-store";
 import { XIcon } from "lucide-react";
+import { ModeToggle } from "./mode-toggle";
 
 interface SidebarProps {
   sidebarData: SidebarData;
@@ -42,27 +43,37 @@ export default function Sidebar({ sidebarData, categoryCounts }: SidebarProps) {
   return (
     <>
       <div className="flex">
-        <aside className="hidden md:block w-52 border-r border-gray-200 pr-8">
+        <aside className="hidden md:block w-52 border-r border-border pr-8">
           <div className="sticky top-[92px]">
             <SidebarContent />
           </div>
         </aside>
       </div>
 
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" />}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 dark:bg-black/70 z-40 md:hidden"
+          onClick={close}
+        />
+      )}
+
       <aside
         className={`
-          fixed top-0 left-0 h-full w-68 bg-white z-50 
+          fixed top-0 left-0 h-full w-68 bg-background z-50 
           transform transition-transform duration-300 ease-in-out
-          md:hidden overflow-y-auto
+          md:hidden overflow-y-auto border-r border-border
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
         <div className="p-5 relative">
-          <div className="flex justify-between items-center mb-2 p-1 absolute top-0 right-0 w-full border-b border-gray-200">
-            <button>d</button>
-            <button onClick={close} className="cursor-pointer p-2">
-              <XIcon size={28} />
+          <div className="flex justify-between items-center mb-2 py-2 px-3 absolute top-0 right-0 w-full border-b border-border">
+            <ModeToggle />
+            <button
+              onClick={close}
+              className="cursor-pointer p-2 hover:bg-muted rounded-lg transition-colors"
+              aria-label="Close sidebar"
+            >
+              <XIcon size={24} className="text-foreground" />
             </button>
           </div>
           <div className="mt-12">

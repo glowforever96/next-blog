@@ -8,10 +8,10 @@ export default function PostCard({ post }: { post: BlogPost }) {
     <Link
       key={post.slug}
       href={`/posts/${post.slug}`}
-      className="bg-white rounded-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+      className="bg-card rounded-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-border"
     >
       <article className="flex flex-col lg:flex-row">
-        <div className="relative w-full lg:w-64 aspect-video bg-gray-100">
+        <div className="relative w-full lg:w-64 aspect-video bg-muted">
           <Image
             src={post.thumbnail}
             alt={post.title}
@@ -24,12 +24,17 @@ export default function PostCard({ post }: { post: BlogPost }) {
 
         <div className="flex-1 p-4 md:p-6">
           <div className="flex items-center justify-between mb-2">
-            <time dateTime={post.date} className="text-xs text-gray-500">
+            <time
+              dateTime={post.date}
+              className="text-xs text-muted-foreground"
+            >
               {formatRelativeDate(post.date)}
             </time>
           </div>
-          <h3 className="text-lg font-semibold mb-2">{post.title}</h3>
-          <p className="text-gray-600 text-sm">{post.description}</p>
+          <h3 className="text-lg font-semibold mb-2 text-card-foreground">
+            {post.title}
+          </h3>
+          <p className="text-muted-foreground text-sm">{post.description}</p>
         </div>
       </article>
     </Link>
