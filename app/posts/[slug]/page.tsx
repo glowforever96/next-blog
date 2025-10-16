@@ -73,7 +73,7 @@ export default async function PostPage({
 
   return (
     <article>
-      <PostHeader title={post.title} date={post.date} />
+      <PostHeader title={post.title} date={post.date} tags={post.tags} />
       <PostBody content={post.content} />
     </article>
   );
