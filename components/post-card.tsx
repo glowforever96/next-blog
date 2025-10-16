@@ -8,7 +8,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
     <Link
       key={post.slug}
       href={`/posts/${post.slug}`}
-      className="bg-card rounded-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-border"
+      className="bg-card rounded-sm overflow-hidden shadow-sm transition-shadow border border-border"
     >
       <article className="flex flex-col lg:flex-row">
         <div className="relative w-full lg:w-64 aspect-video bg-muted">

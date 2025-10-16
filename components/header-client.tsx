@@ -7,16 +7,16 @@ import { ModeToggle } from "./mode-toggle";
 
 export default function HeaderClient() {
   const pathname = usePathname();
-  const isAboutPage = pathname === "/about";
+  const isHideMenu = pathname === "/about" || pathname.includes("/posts/");
   const { toggle } = useSidebarStore();
 
   return (
     <div className="flex items-center gap-2">
-      <div className={isAboutPage ? "block" : "hidden md:block"}>
+      <div className={isHideMenu ? "block" : "hidden md:block"}>
         <ModeToggle />
       </div>
 
-      {!isAboutPage && (
+      {!isHideMenu && (
         <button
           onClick={toggle}
           className="md:hidden cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
