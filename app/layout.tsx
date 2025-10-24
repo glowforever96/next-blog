@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 const pretendard = localFont({
   src: "../fonts/PretendardVariable.woff2",
@@ -94,6 +95,7 @@ export default function RootLayout({
           <main className="py-[74px] max-w-6xl mx-auto px-4 md:py-[84px]">
             {children}
           </main>
+          <Toaster position="top-center" />
           <Footer />
         </ThemeProvider>
       </body>

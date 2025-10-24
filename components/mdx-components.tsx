@@ -1,4 +1,5 @@
 import React from "react";
+import CustomPre from "./custom-pre";
 
 export const MDXComponents = {
   h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
@@ -34,10 +35,7 @@ export const MDXComponents = {
   ),
 
   pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre
-      className="bg-muted p-4 rounded-lg overflow-x-auto mb-4 [&_code]:bg-transparent [&_code]:text-inherit [&_code]:p-0 [&_code]:text-base [&_code]:font-medium"
-      {...props}
-    />
+    <CustomPre {...props} />
   ),
 
   blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
