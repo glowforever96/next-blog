@@ -14,30 +14,32 @@ export default function Sidebar({ sidebarData, categoryCounts }: SidebarProps) {
   const { isOpen, close } = useSidebarStore();
 
   const SidebarContent = () => (
-    <div className="space-y-2 text-sm">
+    <nav className="space-y-2 text-sm" aria-label="카테고리 네비게이션">
       {Object.entries(sidebarData).map(([key, value]) => (
         <div key={key}>
-          <Link href={`/?c=${key}`} onClick={close}>
-            <ul className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors">
-              <span>{key}</span> <span>{categoryCounts[key]}</span>
-            </ul>
+          <Link
+            href={`/?c=${key}`}
+            onClick={close}
+            className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors block"
+          >
+            <span>{key}</span> <span>{categoryCounts[key]}</span>
           </Link>
-          <div className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1">
             {value.map((item) => (
-              <Link
-                href={`/?c=${key}&t=${item.tag}`}
-                key={item.tag}
-                onClick={close}
-              >
-                <li className="ml-2 mb-0 text-muted-foreground list-none flex justify-between hover:text-blue-600 transition-colors">
+              <li key={item.tag} className="ml-2 mb-0 text-muted-foreground">
+                <Link
+                  href={`/?c=${key}&t=${item.tag}`}
+                  onClick={close}
+                  className="flex justify-between hover:text-blue-600 transition-colors"
+                >
                   <span>{item.tag}</span> <span>{item.count}</span>
-                </li>
-              </Link>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       ))}
-    </div>
+    </nav>
   );
 
   return (
