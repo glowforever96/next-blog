@@ -1,0 +1,283 @@
+---
+title: "가상화 기법으로 리스트 아이템 최적화 하기 (feat. TanStack Virtual)"
+date: "2025-12-16"
+description: "TanStack은 신이야"
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Virtualization", "TanStack Virtual"]
+thumbnail: "/images/thumbnails/react-virtual.webp"
+---
+
+> 사내 프로젝트 개발 중 테이블 셀 데이터 2,000개를 브라우저에서 렌더링해야 하는 상황이 있었습니다. 테스트 데이터였지만 브라우저 부담이 심해 팀원들이 개발 환경에서 테스트하기 어려웠습니다.
+> 문제를 해결하고자 TanStack Virtual을 통해 가상화 기법을 적용하니 브라우저 최적화가 가능해졌고, 이번 포스트에서는 `TanStack Virtual`을 통한 가상화 기법 사용에 대해 정리하고 공유 해보려 합니다.
+
+## Headless UI의 장점
+
+우선 `@tanstack/react-virtual`은 **Headless UI** 라이브러리입니다. Headless UI는 스타일이나 특정 UI 프레임워크에 종속되지 않고, **로직과 상태 관리만 제공**하는 라이브러리를 말합니다.
+
+TanStack Virtual도 마찬가지로 가상화 로직만 제공하고, 실제 렌더링되는 UI는 개발자가 완전히 제어할 수 있습니다. 이 덕분에 프로젝트의 디자인 시스템과 자연스럽게 통합이 가능합니다.
+
+번외로 TanStack이 제공하는 테이블 라이브러리인 `TanStack Table`도 Headless UI 라이브러리임을 표방하는데, 나중에 기회가 된다면 깊게 사용해보고 싶습니다!
+
+## 가상화가 필요한 이유
+
+일반적인 리스트 렌더링 방식은 다음과 같습니다.
+
+```tsx
+function CommentList({ comments }) {
+  return (
+    <ul>
+      {comments.map((comment) => (
+        <li key={comment.id}>{comment.body}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+만약 `comments`가 10,000개라면? 브라우저는 10,000개의 `<li>` 요소를 모두 생성하고, 스크롤할 때마다 모든 요소를 다시 계산해야 합니다. 이는 심각한 성능 저하를 일으킵니다.
+또한 프론트엔드에서 자주 사용하는 무한 스크롤 데이터 페칭 패턴의 경우에도 데이터가 계속해서 쌓일 경우 브라우저에 부담이 될 수 있습니다.
+
+**가상화의 핵심 아이디어**: 화면에 보이는 항목만 렌더링하고, 스크롤 위치에 따라 동적으로 항목을 교체합니다.
+저는 TanStack이 제공하는 `@tanstack/react-virtual` 라이브러리를 통해 정말 쉽게 가상화 기법을 적용할수 있었습니다.
+
+## 가상화의 기본 구조
+
+`@tanstack/react-virtual` 공식 문서에서 제공하는 기본적인 가상화 기법을 적용하기 위한 코드 형태입니다.
+각 메서드나 속성들이 어떤것을 의미하는지 하나씩 찬찬히 정리해봤습니다.
+
+[TanStack Virtual 공식문서](https://tanstack.com/virtual/latest)
+
+```tsx
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+function VirtualizedList({ items }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: items.length, // 전체 항목 개수
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100, // 각 항목의 예상 높이
+    overscan: 5, // 화면 밖에 미리 렌더링할 항목 수
+  });
+
+  return (
+    <div ref={parentRef} className="h-[400px] overflow-y-auto">
+      {/* 가상 컨테이너: 전체 높이를 차지 */}
+      <div style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const item = items[virtualRow.index];
+          return (
+            <div
+              key={item.id}
+              style={{
+                position: "absolute",
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {item.content}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+```
+
+## getTotalSize() - 가상 컨테이너의 높이
+
+```tsx
+<div style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+```
+
+`getTotalSize()`는 **모든 항목의 총 높이**를 반환합니다. 이 값은 실제로 렌더링된 항목의 높이가 아니라, 모든 항목이 존재한다고 가정했을 때의 전체 높이입니다.
+
+**예시:**
+
+- 전체 항목: 10,000개
+- 각 항목 예상 높이: 100px
+- `getTotalSize()` = 10,000 × 100 = 1,000,000px
+
+이 높이를 설정하는 이유는 **스크롤바의 전체 길이**를 올바르게 표시하기 위함입니다.
+
+## virtualRow 객체의 속성들
+
+`getVirtualItems()`는 현재 화면에 보여야 할 항목들에 대한 정보를 담은 `virtualRow` 객체들의 배열을 반환합니다.
+
+### virtualRow.index
+
+```tsx
+const item = items[virtualRow.index];
+```
+
+`index`는 **원본 배열에서의 인덱스**입니다. 예를 들어, 화면에 5번째부터 15번째 항목이 보인다면 `virtualRow.index`는 5, 6, 7, ..., 15가 됩니다.
+
+### virtualRow.size
+
+```tsx
+height: `${virtualRow.size}px`;
+```
+
+`size`는 **해당 항목의 실제 높이**입니다. 초기에는 `estimateSize`로 설정한 예상 높이(100px)를 사용하지만, 항목이 렌더링되면 실제 높이로 업데이트된다고 합니다.
+
+### virtualRow.start
+
+```tsx
+transform: `translateY(${virtualRow.start}px)`;
+```
+
+`start`는 **해당 항목이 전체 리스트에서 시작되는 Y 좌표 위치**입니다.
+
+**계산 방식:**
+
+```
+virtualRow.start = 이전 모든 항목들의 높이 합
+```
+
+**예시:**
+
+- 항목 0: `start = 0` (맨 위)
+- 항목 1: `start = 100` (항목 0의 높이)
+- 항목 2: `start = 200` (항목 0 + 항목 1의 높이)
+- 항목 3: `start = 320` (항목 0 + 항목 1 + 항목 2의 높이, 만약 항목 2가 120px라면)
+
+## translateY와 position: absolute의 조합
+
+```tsx
+style={{
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: `${virtualRow.size}px`,
+  transform: `translateY(${virtualRow.start}px)`,
+}}
+```
+
+이 조합이 가상화의 핵심이라고 할 수 있습니다. 각 항목을 절대 위치로 배치하고, `translateY`로 정확한 위치로 이동시킵니다.
+
+## overscan
+
+```tsx
+overscan: 5; // 화면 밖에 5개 항목을 미리 렌더링
+```
+
+`overscan`은 **화면에 보이지 않는 영역에도 항목을 미리 렌더링**하는 옵션입니다.
+사용자가 빠르게 스크롤할 때 빈 화면이 보이는 것을 방지하기 위해선 필요한 옵션 같습니다.
+
+---
+
+## 전체 코드 예제
+
+실제로 간단한 데이터 페칭을 포함한 Next.js 환경의 테스트 페이지를 만들어봤습니다.
+
+```tsx
+"use client";
+import { useEffect, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+type Comment = {
+  id: number;
+  body: string;
+  email: string;
+  name: string;
+  postId: number;
+};
+
+export default function TestPage() {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function fetchComments() {
+      try {
+        const res = await fetch(
+          "https://jsonplaceholder.typicode.com/comments"
+        );
+        const data = await res.json();
+        setComments(data);
+      } catch (error) {
+        console.error("데이터 가져오기 실패:", error);
+      }
+    }
+
+    fetchComments();
+  }, []);
+
+  // 가상화 설정
+  const rowVirtualizer = useVirtualizer({
+    count: comments.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100, // 각 항목의 예상 높이
+    overscan: 5, // 화면 밖에 렌더링할 항목 수
+    measureElement: (element) => element?.getBoundingClientRect().height,
+  });
+
+  return (
+    <div ref={parentRef} className="h-[400px] overflow-y-auto">
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        <ul>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const comment = comments[virtualRow.index];
+            return (
+              <li
+                key={comment.id}
+                className="border-b border-gray-200 p-4"
+                ref={rowVirtualizer.measureElement}
+                data-index={virtualRow.index}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {comment.body} {comment.email} {comment.name} {comment.postId}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+```
+
+## 동적 높이 처리
+
+옵셔널 프로퍼티 `measureElement`는 측정되는 요소의 높이가 동적일때 추가할 수 있습니다.
+각 항목이 렌더링된 후, `measureElement`로 실제 높이를 측정하고 `virtualRow.size`를 업데이트합니다. 그러면 `getTotalSize()`도 자동으로 재계산된다고 합니다.
+주의할 점은 각 요소마다 ref와 data-index 속성을 추가적으로 작성해주어야 합니다.
+
+```tsx
+ <div
+  key={virtualRow.key}
+  data-index={virtualRow.index}
+  ref={virtualizer.measureElement}
+  style={...}
+>...</div>
+```
+
+### 실제 브라우저에선?
+
+예시 코드를 브라우저에서 확인해보니 500개의 데이터가 있음에도 불구하고 가상화 기법이 적용된 모습을 쉽게 확인할 수 있었습니다.
+전체 부모 요소의 height가 미리 계산되고, 스크롤을 내릴 때마다 translateY 값이 적절하게 설정되어 렌더링되는 모습입니다.
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/52b17da0-0540-4ef4-befc-2ffd98eda4b9/image.png)
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/11c892b2-3aed-45c9-8f96-4e385f919804/image.png)
+
+## 마치며
+
+`@tanstack/react-virtual`을 사용해 복잡한 로직 없이도 쉽게 가상화를 적용할 수 있었습니다!
+정말 TanStack이 없는 프론트엔드 생태계는 상상도 하기 싫어집니다..
