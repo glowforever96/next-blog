@@ -20,7 +20,7 @@ export default function Sidebar({ sidebarData, categoryCounts }: SidebarProps) {
           <Link
             href={`/?c=${key}`}
             onClick={close}
-            className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors block"
+            className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors"
           >
             <span>{key}</span> <span>{categoryCounts[key]}</span>
           </Link>
