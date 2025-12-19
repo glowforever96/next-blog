@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 function useProgress() {
   const [progress, setProgress] = useState(0);
+  const lastProgressRef = useRef(0);
+  const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const calculateProgress = () => {
@@ -13,20 +15,26 @@ function useProgress() {
       const percentage =
         scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
 
-      setProgress(Math.min(100, Math.max(0, percentage)));
+      const roundedProgress = Math.floor(
+        Math.min(100, Math.max(0, percentage))
+      );
+
+      if (roundedProgress !== lastProgressRef.current) {
+        lastProgressRef.current = roundedProgress;
+        setProgress(roundedProgress);
+      }
     };
 
     calculateProgress();
 
-    let rafId: number | null = null;
     const handleScroll = () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
       }
 
-      rafId = requestAnimationFrame(() => {
+      rafIdRef.current = requestAnimationFrame(() => {
         calculateProgress();
-        rafId = null;
+        rafIdRef.current = null;
       });
     };
 
@@ -38,8 +46,8 @@ function useProgress() {
     window.addEventListener("resize", handleResize, { passive: true });
 
     return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
       }
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
