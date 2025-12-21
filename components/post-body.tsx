@@ -10,9 +10,9 @@ import { MDXComponents } from "./mdx-components";
 export default function PostBody({ content }: { content: string }) {
   return (
     <>
-      <div className="flex gap-8">
-        <div className="flex-1">
-          <div className="prose prose-lg max-w-none">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
+        <div className="flex-1 w-full min-w-0">
+          <div className="prose prose-lg max-w-none w-full">
             <MDXRemote
               source={content}
               components={MDXComponents}
