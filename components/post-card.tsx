@@ -2,6 +2,7 @@ import { formatRelativeDate } from "@/lib/date";
 import { BlogPost } from "@/types";
 import Link from "next/link";
 import Image from "next/image";
+import TimeClient from "./time-client";
 
 export default function PostCard({ post }: { post: BlogPost }) {
   return (
@@ -24,12 +25,10 @@ export default function PostCard({ post }: { post: BlogPost }) {
 
         <div className="flex-1 p-4 md:p-6">
           <div className="flex items-center justify-between mb-2">
-            <time
-              dateTime={post.date}
+            <TimeClient
+              date={post.date}
               className="text-xs text-muted-foreground"
-            >
-              {formatRelativeDate({ date: post.date, now: new Date() })}
-            </time>
+            />
           </div>
           <h3 className="text-lg font-semibold mb-2 text-card-foreground">
             {post.title}
