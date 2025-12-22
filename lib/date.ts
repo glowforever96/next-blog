@@ -1,9 +1,14 @@
 import { differenceInDays, format, isToday, isYesterday } from "date-fns";
 import { ko } from "date-fns/locale";
 
-export function formatRelativeDate(date: string): string {
+export function formatRelativeDate({
+  date,
+  now,
+}: {
+  date: string;
+  now: Date;
+}): string {
   const targetDate = new Date(date);
-  const now = new Date();
 
   if (isToday(targetDate)) {
     return "오늘";

@@ -21,6 +21,11 @@ export default function Header() {
               About
             </span>
           </Link>
+          <Link href="/guestbook">
+            <span className="text-base md:text-lg font-bold text-muted-foreground">
+              Guestbook
+            </span>
+          </Link>
         </nav>
 
         <HeaderClient />

@@ -28,7 +28,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
               dateTime={post.date}
               className="text-xs text-muted-foreground"
             >
-              {formatRelativeDate(post.date)}
+              {formatRelativeDate({ date: post.date, now: new Date() })}
             </time>
           </div>
           <h3 className="text-lg font-semibold mb-2 text-card-foreground">

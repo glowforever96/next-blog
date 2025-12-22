@@ -10,4 +10,13 @@ interface BlogPost {
   content: string;
 }
 
-export type { BlogPost };
+interface Guestbook {
+  id: number;
+  name: string;
+  comment: string;
+  password: string;
+  isEdited: boolean;
+  createdAt: string;
+}
+
+export type { BlogPost, Guestbook };

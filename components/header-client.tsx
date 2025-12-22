@@ -7,7 +7,10 @@ import { ModeToggle } from "./mode-toggle";
 
 export default function HeaderClient() {
   const pathname = usePathname();
-  const isHideMenu = pathname === "/about" || pathname.includes("/posts/");
+  const isHideMenu =
+    pathname === "/about" ||
+    pathname.includes("/posts/") ||
+    pathname === "/guestbook";
   const { toggle } = useSidebarStore();
 
   return (
