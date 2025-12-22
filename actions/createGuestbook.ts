@@ -5,12 +5,16 @@ import { guestbookTable } from "@/db/schema";
 import { updateTag } from "next/cache";
 
 function formatDateTime(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
+  const kstDate = new Date(
+    date.toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+
+  const year = kstDate.getFullYear();
+  const month = String(kstDate.getMonth() + 1).padStart(2, "0");
+  const day = String(kstDate.getDate()).padStart(2, "0");
+  const hours = String(kstDate.getHours()).padStart(2, "0");
+  const minutes = String(kstDate.getMinutes()).padStart(2, "0");
+  const seconds = String(kstDate.getSeconds()).padStart(2, "0");
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
