@@ -1,4 +1,4 @@
-import TimeClient from "./time-client";
+import { formatRelativeDate } from "@/lib/date";
 
 export default function PostHeader({
   title,
@@ -14,7 +14,9 @@ export default function PostHeader({
       <div className="flex flex-col items-center justify-center">
         <h1 className="text-4xl font-bold mb-4 text-foreground">{title}</h1>
         <div className="flex items-center gap-4 text-muted-foreground">
-          <TimeClient date={date} />
+          <time dateTime={date}>
+            {formatRelativeDate({ date, now: new Date() })}
+          </time>
         </div>
         <div className="flex items-center gap-2 mt-4">
           {tags.map((tag) => (

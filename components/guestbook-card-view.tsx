@@ -1,7 +1,7 @@
 import { Card, CardHeader } from "./ui/card";
 import { Guestbook } from "@/types";
 import { Button } from "./ui/button";
-import TimeClient from "./time-client";
+import { formatRelativeDate } from "@/lib/date";
 
 interface GuestbookCardViewProps {
   data: Guestbook;
@@ -31,7 +31,9 @@ export default function GuestbookCardView({
             {comment}
           </div>
           <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
-            <TimeClient date={createdAt} />
+            <time dateTime={createdAt}>
+              {formatRelativeDate({ date: createdAt, now: new Date() })}
+            </time>
             {isEdited && (
               <span className="text-muted-foreground">(수정됨)</span>
             )}

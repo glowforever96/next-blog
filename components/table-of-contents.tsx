@@ -10,7 +10,10 @@ export default function TableOfContents() {
       <div className="border-l-2 border-border pl-4">
         <ul className="space-y-2 text-sm">
           {headingInfo.map(({ id, text, level }) => (
-            <li key={id} style={{ paddingLeft: `${(level - 1) * 12}px` }}>
+            <li
+              key={`${id}-${text}-${level}`}
+              style={{ paddingLeft: `${(level - 1) * 12}px` }}
+            >
               <button
                 onClick={() => handleClickHeading(id)}
                 className={`text-left w-full cursor-pointer transition-colors hover:text-foreground ${

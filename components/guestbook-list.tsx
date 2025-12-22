@@ -1,20 +1,33 @@
-import { getGuestbook } from "@/actions/getGuestbook";
-import { cacheLife, cacheTag } from "next/cache";
+import { headers } from "next/headers";
 import GuestbookCard from "./guestbook-card";
+import { Guestbook } from "@/types";
+
+async function getBaseUrl() {
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:3000";
+  }
+
+  const headersList = await headers();
+  const host = headersList.get("host");
+  const protocol = headersList.get("x-forwarded-proto") || "https";
+  return `${protocol}://${host}`;
+}
 
 export default async function GuestbookList() {
-  "use cache";
-  cacheTag("guestbook");
-  cacheLife("days");
+  const baseUrl = await getBaseUrl();
+  const res = await fetch(`${baseUrl}/api/guestbook`, {
+    next: { tags: ["guestbook"], revalidate: 60 * 60 * 24 },
+    cache: "force-cache",
+  });
 
-  const { data: guestbook } = await getGuestbook();
+  const { data: guestbook }: { data: Guestbook[] } = await res.json();
 
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-xl font-semibold text-foreground">
-        방명록 ({guestbook.length})
+        방명록 ({guestbook?.length || 0})
       </h2>
-      {guestbook.length === 0 ? (
+      {!guestbook || guestbook.length === 0 ? (
         <p className="text-muted-foreground text-center py-4">
           아직 방명록이 없습니다. 첫 방명록을 남겨주세요!😅
         </p>

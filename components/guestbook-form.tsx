@@ -14,8 +14,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
-import { createGuestbook } from "@/actions/createGuestbook";
 import { toast } from "sonner";
+import { createGuestbook } from "@/actions/createGuestbook";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "이름을 입력해주세요." }),
@@ -42,6 +42,7 @@ export default function GuestBookForm() {
     formData.append("password", password);
 
     const res = await createGuestbook(formData);
+
     if (res.success) {
       toast.success("방명록이 등록되었습니다! 감사합니다😊");
       form.reset();
