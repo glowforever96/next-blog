@@ -32,7 +32,7 @@ export default async function GuestbookList() {
           아직 방명록이 없습니다. 첫 방명록을 남겨주세요!😅
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           {guestbook.map((item) => (
             <GuestbookCard key={item.id} data={item} />
           ))}
