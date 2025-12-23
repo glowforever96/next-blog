@@ -116,7 +116,7 @@ export const MDXComponents = {
   img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="max-w-full md:max-w-3xl lg:max-w-4xl mx-auto my-6"
+      className="max-w-full md:max-w-2xl lg:max-w-3xl mx-auto my-6"
       alt={props.alt || ""}
       {...props}
     />
