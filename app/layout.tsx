@@ -14,7 +14,10 @@ const pretendard = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "soonyong.devlog",
+  title: {
+    default: "soonyong.devlog",
+    template: "%s | soonyong.devlog",
+  },
   description:
     "프론트엔드 개발자 권순용의 개발 블로그입니다. React, Next.js, TypeScript 등 웹 개발 관련 지식과 경험을 공유합니다.",
 
@@ -45,7 +48,7 @@ export const metadata: Metadata = {
     description: "프론트엔드 개발자 권순용의 개발 블로그입니다.",
     images: [
       {
-        url: "",
+        url: "/images/me.webp",
         width: 1200,
         height: 630,
         alt: "soonyong devlog",
@@ -53,11 +56,13 @@ export const metadata: Metadata = {
     ],
   },
 
-  // 파비콘 및 아이콘
-  icons: {
-    icon: "/images/favicon.png",
-    shortcut: "/images/favicon.png",
+  twitter: {
+    card: "summary_large_image",
+    title: "soonyong devlog",
+    description: "프론트엔드 개발자 권순용의 개발 블로그입니다.",
+    images: ["/images/me.webp"],
   },
+
   robots: {
     index: true,
     follow: true,

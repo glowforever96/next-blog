@@ -41,7 +41,12 @@ export async function generateMetadata({
         },
       ],
     },
-
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description: post.description,
+      images: [post.thumbnail],
+    },
     alternates: {
       canonical: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
     },
@@ -71,10 +76,39 @@ export default async function PostPage({
     notFound();
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.description,
+    image: post.thumbnail,
+    datePublished: post.date,
+    dateModified: post.date,
+    author: {
+      "@type": "Person",
+      name: post.author,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "soonyong devlog",
+      url: "https://kwonsoonyong-dev.vercel.app",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+    },
+  };
+
   return (
-    <article>
-      <PostHeader title={post.title} date={post.date} tags={post.tags} />
-      <PostBody content={post.content} />
-    </article>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <article>
+        <PostHeader title={post.title} date={post.date} tags={post.tags} />
+        <PostBody content={post.content} />
+      </article>
+    </>
   );
 }
