@@ -1,0 +1,228 @@
+---
+title: "PWA 기반 웹 서비스에서 푸시 알림 구현하기 (Next.js)"
+date: "2026-02-08"
+description: "웹에서도 푸시 알림이?"
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "PWA", "Service Worker", "Web Push"]
+thumbnail: "/images/thumbnails/react-virtual.webp"
+---
+
+> PWA 기반 웹 서비스를 만들면서 푸시 알림도 함께 구현하게 되었습니다. 별다른 앱 개발이 필요 없이 프론트엔드 코드만으로 구현이 가능했고, 푸시 알림을 위해 구현했던 코드와 흐름을 정리해보았습니다.
+
+## 사용 환경
+
+- Next.js (App Router)
+- Neon DB, drizzle ORM
+
+사용자의 구독 정보 저장, 발송을 위해 Next.js의 API Route 기능도 중점적으로 사용하였습니다.
+
+## 개념과 흐름
+
+푸시 알림 구현을 위해선 4가지의 주인공이 필요했습니다.
+
+- **사용자 브라우저(PWA)**
+  알림을 허용하고, Service Worker를 등록합니다. 또한 해당 기기로 푸시를 받겠다는 구독(subscription) 객체 정보를 만들어 백엔드 서버에 저장해 둡니다.
+  푸시를 '받는' 쪽이 아닌, '구독을 등록하고 그 정보를 서버에 넘기는' 역할까지 담당합니다.
+- **Service Worker**
+  브라우저에 등록된 백그라운드 스크립트로 푸시 서버가 전달한 메세지는 `push` 이벤트로 이 서비스 워커에 전달되며, payload를 파싱해 시스템 알림을 표시합니다.
+  사용자가 알림을 클릭하면 이벤트에서 지정된 URL로 이동 해주는 기능도 서비스 워커가 담당합니다.
+- **백엔드 서버**
+  클라이언트가 보낸 구독 정보를 DB에 저장, 갱신합니다. 푸시를 보낼 시점에 저장된 구독 목록을 조회합니다. 추가적으로 구현한 코드에선 `Web Push` 프로토콜을 통해 각 엔드포인트에 대해 푸시 서버로 발송 요청을 보내는 역할까지 담당합니다.
+- **푸시 서버 (Push Service)**
+  각 브라우저/OS가 제공하는 인프라입니다. (Chrome → FCM, Firefox → Mozilla Push Service 등)
+  실제로 특정 기기까지 메세지를 전달하고 기기의 Service Worker에 push 이벤트를 발생시키는 것은 푸시 서버가 수행합니다.
+
+전체 흐름을 세 단계로 정리했습니다.
+
+1. **구독 등록**
+   - 사용자가 알림을 허용
+   - 브라우저가 해당 기기로 보낼때 쓸 주소를 푸시 서버에서 받고 구독 객체 생성
+   - 구독 객체를 DB에 저장
+2. **푸시 발송**
+   - 알림을 보낼 시점에 DB에서 구독 목록을 조회
+   - 해당 정보를 토대로 푸시 서버에 요청, 실제 기기까지의 전달은 푸시 서버에서 수행
+3. **알림 표시**
+   - 푸시 서버가 기기(브라우저)로 전달
+   - 등록된 Service Worker가 push 이벤트 수신
+   - payload 데이터 파싱 후 시스템 알림 표시
+
+## Service Worker?
+
+`Service Worker`는 **웹 페이지와 분리된, 브라우저가 백그라운드에서 실행하는 스크립트**입니다. 일반적인 웹은 탭을 닫으면 스크립트도 함께 사라지지만 Service Worker는 한번 등록되면 해당 출처에 대해 필요할 때만 꺼내 실행이 가능합니다.
+
+- **출처(origin) 단위**로 등록됩니다. 예를 들어 `https://my-app.com` 에서 등록한 서비스 워커는 이 도메인에서만 유효합니다.
+- **네트워크 요청 가로채기**, **캐시 활용**, **오프라인 동작**, **푸시 알림 수신** 같은 일을 할 수 있습니다. 푸시 알림 동작을 기능을 위해서 필수적으로 사용해야 합니다.
+
+덧붙이자면 처음에는 `next-pwa`라는 라이브러리를 통해서 Service Worker 등록과정을 쉽게 구현하고자 했습니다. 하지만 Next.js 16 버전부터 turbopack이 기본 번들러로 설정됨에 따라 빌드 과정에서 호환성 문제로 충돌하는 상황이 발생했습니다.
+라이브러리 자체도 마지막 업데이트가 3년 전이라 유지보수가 잘 안 되는 상황 같았습니다. 결론적으로 turbopack의 빠른 빌드 속도와 최신 Next.js 기능 최적화를 놓치고 싶지 않았기에 Service Worker를 직접 구현했습니다.
+
+### VAPID 키 발급
+
+먼저 푸시 알림 기능을 구현하기 위해 사전에 VAPID 키 쌍이 필요합니다.
+
+#### 1. VAPID 키 생성
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+해당 명령을 실행시 VAPID 공개키, 비공개키 한쌍이 터미널에 출력됩니다. 이걸 복사해 `.env` 파일에서 환경변수로 관리해줍니다.
+
+```
+// .env.local
+NEXT_PUBLIC_VAPID_PUBLIC_KEY='BBv2NgMH,,,'
+VAPID_PRIVATE_KEY='npYfmS1,,,'
+```
+
+#### 2. `web-push` 라이브러리 설치
+
+```bash
+npm install web-push
+```
+
+`web-push`는 Node.js용 라이브러리로, **Web Push 프로토콜**을 대신 처리해 줍니다.
+푸시 서버(FCM 등)에 보낼 때 필요한 **VAPID 서명**, **payload 암호화**, **HTTP 요청**을 직접 구현하지 않고 라이브러리로 처리합니다.
+
+## 코드 구현
+
+이제부턴 실제 구현한 코드 기반 흐름 순서대로 정리해보았습니다.
+
+### 1. 구독 등록 (앱 접속시 한번)
+
+#### **`public/sw.js` — Service Worker 설치/활성화**
+
+```js
+// public/sw.js
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+```
+
+- **install**
+  - 서비스 워커 스크립트가 설치될 때 한 번 실행됩니다.
+  - `skipWaiting()` 으로 대기 중인 새 서비스 워커를 즉시 활성화 합니다.
+- **activate**
+  - SW가 활성화될 때 실행됩니다.
+  - `clients.claim()` 으로 현재 열린 페이지를 이 서비스 워커가 제어하게 됩니다.
+
+---
+
+#### **`components/service-worker-register.tsx` — 앱 진입점**
+
+브라우저가 마운트 될때 한번 실행됩니다.
+
+`useNotification`이라는 커스텀 훅에서는
+
+- `subscribeToPush`: VAPID 키를 바탕으로 푸쉬 서버에서 구독 객체 생성 및 리턴
+- `requestPermission`: 유저에게 알림 권한 요청 후 boolean 값 반환
+
+을 담당합니다.
+
+```tsx
+// components/service-worker-register.tsx
+
+"use client";
+
+import { useEffect } from "react";
+import { useNotification } from "@/hooks/useNotification";
+
+export default function ServiceWorkerRegister() {
+  const { subscribeToPush, requestPermission } = useNotification();
+
+  useEffect(() => {
+    const initNotifications = async () => {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        return;
+      }
+
+      if (Notification.permission === "default") {
+        const granted = await requestPermission();
+        if (!granted) {
+          console.log("알림 권한이 거부되었습니다.");
+          return;
+        }
+      }
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then(async (registration) => {
+            console.log("Service Worker 등록 성공:", registration.scope);
+            registration.update();
+
+            const autoSubscribe = async () => {
+              if (Notification.permission === "granted") {
+                const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                if (!vapidPublicKey) {
+                  console.warn("VAPID 키가 설정되지 않았습니다.");
+                  return;
+                }
+                // Web Push 서버가 전송한 구독 정보 객체
+                const subscription = await subscribeToPush(vapidPublicKey);
+                if (subscription) {
+                  try {
+                    // 등록한 API Route에 구독 정보 전달
+                    const response = await fetch("/api/push/subscribe", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(subscription),
+                    });
+                    if (response.ok) {
+                      console.log("백그라운드 알림 자동 구독 완료");
+                    } else {
+                      console.error("구독 정보 저장 실패");
+                    }
+                  } catch (error) {
+                    console.error("구독 정보 저장 중 오류:", error);
+                  }
+                }
+              }
+            };
+
+            navigator.serviceWorker.ready.then(() => {
+              autoSubscribe();
+            });
+          })
+          .catch((error) => {
+            console.error("Service Worker 등록 실패:", error);
+          });
+      }
+    };
+    initNotifications();
+  }, [subscribeToPush, requestPermission]);
+
+  return null;
+}
+```
+
+- **register("/sw.js")**
+  - 브라우저에 서비스 워커 스크립트를 등록합니다.
+  - 반환된 registration은 `registration.update()` 를 호출해 최신 서비스워커 스크립트를 체크하는 데 사용합니다.
+  - 추후 구독(pushManager.subscribe)은 커스텀 훅의 `subscribeToPush` 안에서 `navigator.serviceWorker.ready`로 **활성화된 서비스 워커의 registration**을 다시 얻은 뒤, 그 `registration.pushManager.subscribe(...)`로 진행됩니다.
+
+```tsx
+// app/layout.tsx
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="ko">
+      <body>
+        {/* 생략... */}
+        <ServiceWorkerRegister />
+      </body>
+    </html>
+  );
+}
+```
+
+해당 컴포넌트를 루트 레이아웃에 넣어 사용자가 앱에 들어올 때(페이지 로드 시) 권한 요청 → 서비스워커 등록 → 푸시 구독 → 서버 저장이 자동으로 한 번 실행되도록 했습니다.
