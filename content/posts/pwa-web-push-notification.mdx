@@ -86,7 +86,7 @@ npm install web-push
 
 ## 코드 구현
 
-이제부턴 실제 구현한 코드 기반 흐름 순서대로 정리해보았습니다.
+이제부턴 실제 구현한 코드를 기반으로 서비스 워커 등록부터 실제 푸시 알림 전송까지 전 과정을 흐름 순서대로 정리해보았습니다.
 
 ### 1. 구독 등록 (앱 접속시 한번)
 
@@ -113,11 +113,11 @@ self.addEventListener("activate", (event) => {
 
 ---
 
-#### **`components/service-worker-register.tsx` — 앱 진입점**
+#### **`components/service-worker-register.tsx` - 앱 진입점**
 
 브라우저가 마운트 될때 한번 실행됩니다.
 
-`useNotification`이라는 커스텀 훅에서는
+`useNotification`이라는 커스텀 훅을 두었고 두가지의 함수를 사용하고 있습니다.
 
 - `subscribeToPush`: VAPID 키를 바탕으로 푸쉬 서버에서 구독 객체 생성 및 리턴
 - `requestPermission`: 유저에게 알림 권한 요청 후 boolean 값 반환
