@@ -1,6 +1,6 @@
 ---
-title: "PWA 기반 웹 서비스에서 푸시 알림 구현하기 (Next.js)"
-date: "2026-02-08"
+title: "[Next.js] PWA 기반 웹 서비스에서 푸시 알림 구현하기"
+date: "2026-02-07"
 description: "웹에서도 푸시 알림이?"
 author: "프론트엔드 개발자 권순용"
 parentCategory: "Frontend"
@@ -455,7 +455,7 @@ export async function createDiary(formData: FormData) {
 
     // 푸시 서버 요청 시 서버 소유 증명용
     webpush.setVapidDetails(
-      "mailto:eve-diary@example.com",
+      "mailto:example@example.com",
       vapidPublicKey,
       vapidPrivateKey
     );
@@ -537,3 +537,94 @@ try 블록 위쪽은 DB에 단순히 데이터를 넣는 부분이고, **실제 
   | **badge** | 알림 영역에서 앱을 구분할 때 쓰는 **작은 뱃지 이미지 URL**이라고 합니다. 아이콘 이미지 URL을 동일하게 넣어줍니다. |
   | **tag** | 같은 종류 알림을 **그룹 짓는 식별자**입니다. 같은 `tag`면 기기가 알림을 묶어 주거나 새 알림으로 갱신할 수 있다고합니다. |
   | **data** | 알림 **클릭 시** Service Worker가 읽는 데이터가 됩니다. 여기서는 `url` 값을 넣어두어 사용자가 알림을 클릭하면 해당 URL로 이동하도록 Service Worker에서 추후에 제어하게 됩니다. |
+
+이 과정을 거치면, 푸시 서버가 구독 목록의 각 기기로 메시지를 보내고, 해당 기기의 Service Worker에서 `push` 이벤트를 받게 됩니다.
+
+---
+
+### 3. 기기에서 알림까지
+
+이제 마지막 과정입니다! Service Worker가 푸시 서버에서 전달 받은 푸시 알림을 `push` 이벤트 수신을 통해 실제 시스템 알림으로 표시해주게 되는 과정이 됩니다.
+
+다시 Service Worker 스크립트로 돌아왔습니다.
+
+#### 3.1 **`public/sw.js`**
+
+```js
+// public/sw.js (전체)
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let data;
+  try {
+    // 푸시 서버를 통해 전달된 payload(JSON 문자열) 파싱
+    data = event.data.json();
+  } catch (e) {
+    return;
+  }
+
+  const title = data.title || "알림";
+  const body = data.body || "";
+  const icon = data.icon || "/icon-192x192.png";
+  const badge = data.badge || "/icon-192x192.png";
+
+  // 시스템 알림 띄우기
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge,
+      tag: data.tag || "",
+      data: data.data || {}, // 클릭 시 사용할 data 객체
+      requireInteraction: false,
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  // 서버가 넣어 준 data.url 로 이동 (없으면 루트로)
+  const urlToOpen = event.notification.data?.url || "/";
+  const fullUrl = new URL(urlToOpen, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // 이미 열린 탭이 있으면 그쪽으로 navigate + focus
+        for (const client of clientList) {
+          if ("focus" in client && "navigate" in client) {
+            client.navigate(fullUrl);
+            return client.focus();
+          }
+        }
+        // 해당 출처 탭이 없으면 새 창 열기
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(fullUrl);
+        }
+      })
+  );
+});
+```
+
+- **`event.waitUntil(showNotification(...))`**
+  — 이 시점에 실제 OS 알림을 띄웁니다. `title`, `body`, `icon`, `badge` 로 알림 UI를 구성합니다.
+  - `requireInteraction: false` 라서, OS 정책에 따라 사용자가 직접 끄지 않아도 일정 시간 후 자동으로 사라질 수 있습니다.
+- - **notificationclick**
+  - 사용자가 알림을 클릭했을 때 실행합니다.
+
+여기까지 과정을 따라가면, 브라우저에서 푸시 알림이 정상적으로 뜨는 것을 확인할 수 있었습니다.
+(가족 전용 앱으로 재미삼아 만들었는데 와이프가 좋아하는 것을 보니 괜히 뿌듯했습니다ㅎㅎ)
+
+## 마치며
+
+PWA에서 직접 푸시 알림 기능을 구현해 보며, 굳이 네이티브 앱을 만들지 않아도 앱과 비슷하게 동작하도록 만들 수 있다는 점이 인상적이었습니다.
+홈 화면 설치 같은 번거로운 과정이나 모든 네이티브 앱 기능을 완전히 지원하지는 않지만, 간단한 사이드 프로젝트에 적용해 보기에는 충분히 매력적인 선택이라는 생각이 들었습니다.
