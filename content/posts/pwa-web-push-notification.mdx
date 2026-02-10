@@ -55,6 +55,7 @@ thumbnail: "/images/thumbnails/react-virtual.webp"
 - **네트워크 요청 가로채기**, **캐시 활용**, **오프라인 동작**, **푸시 알림 수신** 같은 일을 할 수 있습니다. 푸시 알림 동작을 기능을 위해서 필수적으로 사용해야 합니다.
 
 덧붙이자면 처음에는 `next-pwa`라는 라이브러리를 통해서 Service Worker 등록과정을 쉽게 구현하고자 했습니다. 하지만 Next.js 16 버전부터 turbopack이 기본 번들러로 설정됨에 따라 빌드 과정에서 호환성 문제로 충돌하는 상황이 발생했습니다.
+
 라이브러리 자체도 마지막 업데이트가 3년 전이라 유지보수가 잘 안 되는 상황 같았습니다. 결론적으로 turbopack의 빠른 빌드 속도와 최신 Next.js 기능 최적화를 놓치고 싶지 않았기에 Service Worker를 직접 구현했습니다.
 
 ### VAPID 키 발급
@@ -323,7 +324,7 @@ export function useNotification() {
 }
 ```
 
-- **pushManager.subscribe({ applicationServerKey })**
+- **`pushManager.subscribe({ applicationServerKey })`**
   - VAPID 공개키를 넘겨 브라우저가 푸시 서버와 통신합니다.
   - 반환값은 `endpoint`, `keys.p256dh`, `keys.auth` 등을 가진 구독 객체입니다.
 
