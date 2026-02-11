@@ -3,6 +3,7 @@ interface BlogPost {
   title: string;
   date: string;
   description: string;
+  metaDescription?: string;
   author: string;
   thumbnail: string;
   parentCategory: string;

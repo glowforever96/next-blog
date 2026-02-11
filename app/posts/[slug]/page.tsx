@@ -20,7 +20,7 @@ export async function generateMetadata({
 
   return {
     title: post.title,
-    description: post.description,
+    description: post.metaDescription,
     authors: [{ name: post.author }],
     keywords: post.title.split(" ").concat(["개발", "프론트엔드", "블로그"]),
     openGraph: {
@@ -29,7 +29,7 @@ export async function generateMetadata({
       url: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
       siteName: "soonyong devlog",
       title: post.title,
-      description: post.description,
+      description: post.metaDescription,
       publishedTime: post.date,
       authors: [post.author],
       images: [
@@ -44,7 +44,7 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: post.title,
-      description: post.description,
+      description: post.metaDescription,
       images: [post.thumbnail],
     },
     alternates: {
@@ -80,7 +80,7 @@ export default async function PostPage({
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
-    description: post.description,
+    description: post.metaDescription,
     image: post.thumbnail,
     datePublished: post.date,
     dateModified: post.date,
