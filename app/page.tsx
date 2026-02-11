@@ -1,4 +1,4 @@
-import { getAllPosts } from "@/lib/mdx";
+ import { getAllPosts } from "@/lib/mdx";
 import { getSidebarData } from "@/lib/sidebar";
 import Sidebar from "@/components/sidebar";
 import PostCard from "@/components/post-card";
@@ -39,7 +39,7 @@ async function PostsList({
         aria-label="글 목록"
       >
         {posts.map((post) => (
-          <li key={post.slug}>
+          <li key={post.slug} className="contents">
             <PostCard post={post} />
           </li>
         ))}
