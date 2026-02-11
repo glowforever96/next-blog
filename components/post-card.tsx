@@ -32,11 +32,11 @@ export default function PostCard({ post }: { post: BlogPost }) {
             {post.title}
           </h3>
           <p className="text-muted-foreground text-sm">{post.description}</p>
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
             {post.tags.map((tag) => (
               <span
                 key={tag}
-                className="text-xs text-blue-500 bg-muted px-2 py-1 rounded-md dark:text-blue-400 font-medium"
+                className="text-xs text-blue-500 bg-muted px-2 py-1 rounded-md dark:text-blue-400 font-medium w-fit "
               >
                 {tag}
               </span>
