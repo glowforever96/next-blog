@@ -10,8 +10,8 @@ thumbnail: "/images/thumbnails/next-js-page-render.webp"
 
 ## 👋 들어가며
 
-> 처음 Next.js의 Page Router와 App Router 방식을 공부하면서 가장 자주 잊어버린 개념이 데이터 패칭 방식입니다.
-> App Router는 `Server Component` 기반 `fetch()` 중심으로 모든 데이터 패칭 방식이 통합됐지만, 혹여나 Page Router 기반 프로젝트를 접할 일이 있을수도 있어 기록해두었습니다. 추가로 App Router 데이터 패칭 방식, 페이지 생성 전략 등 정리하고 싶은 요소를 정리했습니다.
+> 처음 Next.js의 Page Router와 App Router 방식을 공부하면서 가장 자주 잊어버린 개념이 데이터 페칭 방식입니다.
+> App Router는 `Server Component` 기반 `fetch()` 중심으로 모든 데이터 페칭 방식이 통합됐지만, 혹여나 Page Router 기반 프로젝트를 접할 일이 있을수도 있어 기록해두었습니다. 추가로 App Router 데이터 패칭 방식, 페이지 생성 전략 등 정리하고 싶은 요소를 정리했습니다.
 
 ## Page Router vs App Router 요약 비교
 
@@ -51,8 +51,14 @@ export default function PostPage({ post }) {
 #### App Router (app/posts/[id]/page.tsx)
 
 ```tsx
-export default async function PostPage({ params }: { params: { id: string } }) {
-  const res = await fetch(`https://api.example.com/posts/${params.id}`, {
+// Next.js 15+ 기준: params는 Promise
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const res = await fetch(`https://api.example.com/posts/${id}`, {
     cache: "no-store",
   });
   const post = await res.json();
@@ -227,8 +233,14 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function PostPage({ params }: { params: { id: string } }) {
-  const res = await fetch(`https://api.example.com/posts/${params.id}`);
+// Next.js 15+ 기준: params는 Promise
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const res = await fetch(`https://api.example.com/posts/${id}`);
   const post = await res.json();
 
   return (
@@ -249,7 +261,7 @@ App Router를 학습하면서 가장 헷갈렸던 부분 중 하나가 바로 `f
 - **개발 모드 (`next dev`)**: 매 요청마다 fetch → SSR처럼 보임
 - **프로덕션 빌드 (`next build`)**:
   - 정적인 페이지면 SSG로 한 번만 fetch
-  - **동적 요소가 있으면 감지되면 자동으로 SSR로 전환**
+  - **동적 요소가 있으면 자동으로 SSR로 전환**
 
 그럼 동적 요소가 있으면 페이지 자체가 SSR로 자동 전환되는 동적 요소는 어떤게 있을까요?
 
@@ -261,23 +273,26 @@ App Router를 학습하면서 가장 헷갈렸던 부분 중 하나가 바로 `f
 ```tsx
 import { cookies } from "next/headers";
 
-export default function HomePage() {
-  const cookieStore = cookies();
+// Next.js 15+ 기준: cookies()는 비동기
+export default async function HomePage() {
+  const cookieStore = await cookies();
   const token = cookieStore.get("accessToken");
 
   return <div>Your token: {token?.value}</div>;
 }
 ```
 
-`cookies()`는 사용자 요청마다 다른 값이기 때문에 정적 생성이 불가능 -> SSR 자동 처리
+`cookies()`는 사용자 요청마다 다른 값이기 때문에 정적 생성이 불가능 → SSR 자동 처리
 
 **2. `headers` 사용**
 
 ```tsx
 import { headers } from "next/headers";
 
-export default function Page() {
-  const userAgent = headers().get("user-agent");
+// Next.js 15+ 기준: headers()는 비동기
+export default async function Page() {
+  const headerList = await headers();
+  const userAgent = headerList.get("user-agent");
 
   return <p>Your user agent is {userAgent}</p>;
 }
@@ -288,12 +303,14 @@ export default function Page() {
 **3. `searchParams` 사용**
 
 ```tsx
-export default function ProductsPage({
+// Next.js 15+ 기준: searchParams는 Promise일 수 있음
+export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { keyword?: string };
+  searchParams: Promise<{ keyword?: string }>;
 }) {
-  return <div>검색어: {searchParams.keyword}</div>;
+  const params = await searchParams;
+  return <div>검색어: {params.keyword}</div>;
 }
 ```
 
@@ -395,7 +412,7 @@ SSR로 전환되는 경우
 
 ---
 
-**참고 자료**
-https://nextjs.org/docs/app/getting-started/partial-prerendering#dynamic-rendering
-https://nextjs.org/docs/app/getting-started/fetching-data
-지피티 선생님
+**참고**
+
+- [Next.js - Dynamic Rendering](https://nextjs.org/docs/app/building-your-application/rendering/server-components#dynamic-rendering)
+- [Next.js - Data Fetching](https://nextjs.org/docs/app/getting-started/fetching-data)

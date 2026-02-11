@@ -34,11 +34,16 @@ async function PostsList({
       <h1 className="text-2xl font-bold mb-8">
         {title} ({posts.length})
       </h1>
-      <div className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col">
+      <ul
+        className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col list-none p-0 m-0"
+        aria-label="글 목록"
+      >
         {posts.map((post) => (
-          <PostCard key={post.slug} post={post} />
+          <li key={post.slug}>
+            <PostCard post={post} />
+          </li>
         ))}
-      </div>
+      </ul>
     </>
   );
 }
@@ -49,11 +54,11 @@ export default async function Home({ searchParams }: HomeProps) {
   return (
     <div className="gap-0 md:flex md:gap-8">
       <Sidebar sidebarData={sidebarData} categoryCounts={categoryCounts} />
-      <div className="flex-1">
+      <section className="flex-1">
         <Suspense fallback={null}>
           <PostsList searchParams={searchParams} />
         </Suspense>
-      </div>
+      </section>
     </div>
   );
 }

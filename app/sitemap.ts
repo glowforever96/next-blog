@@ -12,7 +12,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  // 정적 페이지들
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: "https://kwonsoonyong-dev.vercel.app",
@@ -25,6 +24,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.9,
+    },
+    {
+      url: "https://kwonsoonyong-dev.vercel.app/guestbook",
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.7,
     },
   ];
 
