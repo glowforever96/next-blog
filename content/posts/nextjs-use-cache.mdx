@@ -1,0 +1,252 @@
+---
+title: "[Next.js] use cache 지시어로 캐싱 제대로 이해하기"
+date: "2026-02-09"
+description: "use 시리즈의 막내 use cache"
+metaDescription: "Next.js의 'use cache' 디렉티브로 서버 컴포넌트, 함수, 파일 단위 캐싱하는 방법과 cacheTag·cacheLife를 이용한 무효화 전략을 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "Caching"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+
+> App Router를 쓰다 보면 캐싱 전략이 꽤 복잡하게 느껴질 때가 있습니다. 특히 `fetch` 옵션에 `cache: 'force-cache'`를 붙이거나 `revalidate`를 설정하는 방식은 `fetch`를 사용하는 경우에만 동작한다는 한계가 있었습니다. Next.js 공식 문서를 읽다가 이를 해결하는 `use cache` 지시어를 발견했고, 개념과 사용법을 한번 정리해보았습니다.
+
+## `use cache`란?
+
+`use cache`는 Next.js 15에서 실험적으로 도입되고, **Next.js 16에서 정식(stable) 기능**으로 도입된 캐싱 지시어입니다.
+
+정식 사용을 위해서는 `next.config.ts`에 아래 설정이 필요합니다.
+
+```ts
+// next.config.ts
+const nextConfig = {
+  cacheComponents: true,
+};
+
+export default nextConfig;
+```
+
+기존에는 서버에서 데이터를 캐싱하려면 `fetch` 함수에 옵션을 넣거나, `unstable_cache`를 써야 했습니다. 하지만 `fetch`를 사용하지 않는 DB 쿼리, 파일 시스템 작업, 복잡한 계산 같은 경우에는 캐싱하기가 번거로웠습니다.
+
+`use cache`를 사용하면 **어떤 비동기 함수나 컴포넌트를 캐시할수 있게 되었습니다.** `'use server'`, `'use client'`처럼 파일이나 함수 상단에 선언하기만 하면 됩니다.
+
+---
+
+## 어디에 사용할 수 있을까?
+
+`use cache`는 총 세 가지 레벨에서 선언할 수 있습니다.
+
+### 1. 파일 레벨
+
+파일 최상단에 선언하면 해당 파일의 **모든 export 함수에 캐싱이 적용**됩니다.
+
+```tsx
+"use cache";
+
+export default async function Page() {
+  // 이 페이지 전체가 캐시됩니다
+  const data = await fetchSomething();
+  return <div>{data}</div>;
+}
+```
+
+> 파일 레벨에서 사용할 때는 모든 export가 **비동기 함수**여야 합니다.
+
+---
+
+### 2. 컴포넌트 레벨
+
+특정 컴포넌트만 캐시하고 싶을 때 해당 함수 내부에 선언합니다.
+
+```tsx
+import db from "@/db";
+
+async function ProductList() {
+  "use cache";
+  const products = await db.product.findMany();
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default async function Page() {
+  return (
+    <>
+      <h1>상품 목록</h1>
+      <ProductList />
+    </>
+  );
+}
+```
+
+`Header` 같은 정적인 컴포넌트는 캐시하지 않고, 데이터를 불러오는 `ProductList`만 캐시하는 식으로 **세밀하게 제어**할 수 있습니다.
+
+---
+
+### 3. 함수 레벨
+
+컴포넌트가 아닌 **일반 비동기 함수**에도 사용할 수 있습니다. DB 쿼리, API 요청, 무거운 계산 등 어디에든 붙일 수 있습니다.
+
+```tsx
+export async function getData() {
+  "use cache";
+  const data = await fetch("/api/data");
+  return data;
+}
+```
+
+```tsx
+import { cacheTag } from "next/cache";
+
+export async function getProducts() {
+  "use cache";
+  cacheTag("products");
+
+  const products = await db.query("SELECT * FROM products");
+  return products;
+}
+```
+
+`fetch`를 전혀 쓰지 않는 DB 쿼리도 캐시할 수 있다는 점이 핵심입니다.
+
+---
+
+## cacheTag — 태그 기반 무효화
+
+캐시를 무효화하는 가장 깔끔한 방법은 **태그**를 붙여두고 필요할 때 캐시를 무효화 시키는 방식입니다.
+
+```tsx
+import { cacheTag } from "next/cache";
+
+async function getPosts() {
+  "use cache";
+  cacheTag("posts");
+  // 데이터 fetching
+}
+```
+
+태그를 붙여두면 `revalidateTag`로 해당 캐시만 정확하게 무효화할 수 있습니다.
+
+```tsx
+import { cacheTag, revalidateTag } from "next/cache";
+
+export async function getPosts() {
+  "use cache";
+  cacheTag("posts");
+  // fetch data
+}
+
+// 서버 액션에서 새 글 작성 후 캐시 무효화
+export async function createPost(post: FormData) {
+  "use server";
+  // 데이터 저장 로직...
+  revalidateTag("posts", "max");
+}
+```
+
+`revalidateTag(tag, 'max')`의 `'max'`는 **stale-while-revalidate** 방식으로 동작합니다. 즉, 캐시를 바로 무효화하는 것이 아닌, **기존 캐시를 내려주면서 백그라운드에서 새 데이터를 가져오는** 방식입니다. 블로그처럼 즉각적인 반영이 필수가 아닌 콘텐츠에 적합합니다.
+
+---
+
+## cacheLife — 시간 기반 재검증
+
+시간이 지나면 자동으로 캐시를 갱신하고 싶을 때는 `cacheLife`를 사용합니다.
+
+```tsx
+import { cacheTag, cacheLife } from "next/cache";
+
+async function getRecentArticles() {
+  "use cache";
+  cacheTag("articles");
+  cacheLife("hours"); // 1시간마다 재검증
+
+  return db.query("SELECT * FROM articles ORDER BY created_at DESC");
+}
+```
+
+`cacheLife`에는 프리셋 문자열(`'seconds'`, `'minutes'`, `'hours'`, `'days'`, `'weeks'`)을 넣거나, 직접 `{ expire: 300 }` 같은 객체로도 줄 수 있습니다.
+
+```tsx
+cacheLife({ expire: 300 }); // 5분
+```
+
+---
+
+## 캐시 레벨 조합 예시
+
+`use cache`의 진가는 **여러 캐싱 전략을 한 페이지에서 혼합**해서 쓸 수 있다는 점입니다.
+
+```tsx
+import { Suspense } from "react";
+import { cacheLife, cacheTag } from "next/cache";
+
+// 빌드 타임에 정적으로 캐시 (변경이 거의 없는 데이터)
+async function getProduct(id: string) {
+  "use cache";
+  cacheTag(`product-${id}`);
+  return db.products.find({ where: { id } });
+}
+
+// 5분마다 갱신 (자주 바뀌는 가격 정보)
+async function getProductPrice(id: string) {
+  "use cache";
+  cacheTag(`product-price-${id}`);
+  cacheLife({ expire: 300 });
+  return db.products.getPrice({ where: { id } });
+}
+
+export default async function ProductPage({ params }) {
+  const { id } = await params;
+  const product = await getProduct(id);
+
+  return (
+    <div>
+      <h1>{product.name}</h1>
+      <p>{product.description}</p>
+
+      {/* 가격은 별도로 느슨하게 캐시 */}
+      <Suspense fallback={<p>가격 불러오는 중...</p>}>
+        <ProductPrice productId={id} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ProductPrice({ productId }: { productId: string }) {
+  const price = await getProductPrice(productId);
+  return <p>가격: {price}원</p>;
+}
+```
+
+이렇게 하면 상품명/설명은 빌드 타임에 정적으로 캐시하고, 가격만 5분 주기로 갱신하도록 **각 데이터의 특성에 맞게 전략을 나눌 수 있습니다.**
+
+---
+
+## 기존 방식과 비교
+
+| 방식                             | 대상                     | 특징                             |
+| -------------------------------- | ------------------------ | -------------------------------- |
+| `fetch` + `cache: 'force-cache'` | fetch 요청만             | 기본 캐시, fetch에서만 동작      |
+| `fetch` + `next.revalidate`      | fetch 요청만             | ISR과 유사, fetch에서만 동작     |
+| `unstable_cache`                 | 어떤 함수든              | 실험적, 복잡한 설정 필요         |
+| **`use cache`**                  | **어떤 함수·컴포넌트든** | 선언적, DB 쿼리·계산도 캐시 가능 |
+
+---
+
+## 마치며
+
+`use cache`는 기존 `fetch` 중심 캐싱에서 벗어나 **어떤 서버 사이드 작업이든 선언적으로 캐시**할 수 있게 해주는 지시어입니다.
+
+Next.js 16에서 정식 기능이 된 지 얼마 되지 않았지만 이 패턴이 표준으로 자리 잡는다면, `fetch` 여부와 상관없이 서버 사이드 작업을 일관된 방식으로 캐싱할 수 있어 캐시 전략이 한결 단순해질 것 같습니다.
+
+---
+
+**참고**
+
+- [Next.js 공식 문서 - use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache)
+- [Next.js 공식 문서 - cacheTag](https://nextjs.org/docs/app/api-reference/functions/cacheTag)
+- [Next.js 공식 문서 - cacheLife](https://nextjs.org/docs/app/api-reference/functions/cacheLife)
