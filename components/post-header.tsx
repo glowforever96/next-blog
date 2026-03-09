@@ -1,4 +1,5 @@
-import { formatRelativeDate } from "@/lib/date";
+import TimeClient from "@/components/time-client";
+import { formatAbsoluteDate } from "@/lib/date";
 
 export default function PostHeader({
   title,
@@ -9,14 +10,14 @@ export default function PostHeader({
   date: string;
   tags: string[];
 }) {
+  const fallbackText = formatAbsoluteDate({ date });
+
   return (
     <header className="mb-8 border-b border-border pb-8">
       <div className="flex flex-col items-center justify-center">
         <h1 className="text-4xl font-bold mb-4 text-foreground">{title}</h1>
         <div className="flex items-center gap-4 text-muted-foreground">
-          <time dateTime={date}>
-            {formatRelativeDate({ date, now: new Date() })}
-          </time>
+          <TimeClient date={date} fallbackText={fallbackText} />
         </div>
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           {tags.map((tag) => (

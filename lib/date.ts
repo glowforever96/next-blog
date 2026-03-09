@@ -1,6 +1,11 @@
 import { differenceInDays, format, isToday, isYesterday } from "date-fns";
 import { ko } from "date-fns/locale";
 
+export function formatAbsoluteDate({ date }: { date: string }): string {
+  const targetDate = new Date(date);
+  return format(targetDate, "yyyy년 MM월 dd일", { locale: ko });
+}
+
 export function formatRelativeDate({
   date,
   now,
@@ -24,5 +29,5 @@ export function formatRelativeDate({
     return `${daysDifference}일 전`;
   }
 
-  return format(targetDate, "yyyy년 MM월 dd일", { locale: ko });
+  return formatAbsoluteDate({ date });
 }

@@ -5,12 +5,16 @@ import { formatRelativeDate } from "@/lib/date";
 
 export default function TimeClient({
   date,
+  fallbackText,
   className,
 }: {
   date: string;
+  fallbackText?: string;
   className?: string;
 }) {
-  const [formattedDate, setFormattedDate] = useState<string>("");
+  const [formattedDate, setFormattedDate] = useState<string>(
+    fallbackText ?? date
+  );
 
   useEffect(() => {
     const now = new Date();
