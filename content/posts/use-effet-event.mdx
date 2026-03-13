@@ -1,0 +1,105 @@
+---
+title: "React 19.2에서 정식 도입된 useEffectEvent 알아보기"
+date: "2026-03-05"
+description: ""
+metaDescription: ""
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "useEffectEvent", "useEffect"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+
+> React 19.2에서 useEffectEvent가 정식 훅으로 도입됐습니다. effect 안에서 최신 state를 쓰면서도 의존성 배열 때문에 리스너나 인터벌이 매번 다시 붙는 문제를 줄여 주는 훅인데, 간단한 예제로 동작 원리를 정리해봤습니다.
+
+## 들어가며
+
+useEffectEvent 훅을 먼저 알아보기 전에 이 훅의 탄생 배경과 연관이 깊은 useEffect에 대한 정의를 다시 찾아봤고, React 공식문서에 따르면 첫 시작부터 useEffect 훅을 다음과 같이 정의하고 있습니다.
+
+> useEffect는 외부 시스템과 컴포넌트를 동기화하는 React Hook입니다.
+
+그렇다면 React에서 정의한 외부 시스템은 무엇인지 알아봐야겠습니다. 공식 문서는 다음과 같이 정의합니다.
+
+[useEffect 공식 문서](https://ko.react.dev/reference/react/useEffect)
+
+- Effect는 (채팅 시스템과 같은) 외부 시스템과 컴포넌트가 동기화를 유지할 수 있도록 합니다. 외부 시스템은 React에 의해 컨트롤되지 않는 모든 코드를 의미합니다. 예를 들어:
+  - setInterval()에 의해 관리되는 타이머 또는 clearInterval().
+  - window.addEventListener()을 이용한 이벤트 구독 또는 window.removeEventListener().
+  - animation.start()와 같은 서드 파티 애니메이션 라이브러리 API 또는 animation.reset().
+
+또한 useEffect가 필요하지 않은 경우에 대한 문서도 다양한 예시를 들어 자세히 제공해주네요.
+
+[Effect가 필요하지 않은 경우](https://ko.react.dev/learn/you-might-not-need-an-effect)
+
+저 또한 "useEffect를 남발해선 안 된다!"라는 마인드셋은 있었지만, 머리는 알아도 몸이 안 따라주는 상황이 많았습니다. (귀찮으니까)
+
+결과적으로 두 가지 공식 문서를 비교하며 읽어보니, 그동안 useEffect에게 너무 많은 책임을 준 게 아닌가 반성하게 됐습니다. 이제부터는 useEffect의 짐을 조금이나마 덜어줄 수 있는 **useEffectEvent** 훅을 간단한 예시 코드와 함께 알아보려 합니다.
+
+---
+
+## useEffectEvent란?
+
+`useEffectEvent`는 **effect 안에서만 호출하는 **이벤트 로직\*\*을 분리해 주는 훅입니다.
+
+매개변수로 콜백 함수를 받으며, 이 콜백 함수는 실행할때마다 항상 최신의 props와 state 값을 참조해 오래된 클로저 문제를 피할 수 있다고 합니다.
+
+따라서, 이 훅으로 만든 함수는 **호출되는 시점의 최신 props/state**를 읽지만, **effect의 의존성 배열에는 관련된 반응형 값을 넣지 않아도 됩니다.**
+
+[useEffectEvent 공식 문서](https://react.dev/reference/react/useEffectEvent)
+
+---
+
+## 기존 방식의 한계
+
+저는 React가 말하는 useEffect의 용도인 `외부 시스템과 컴포넌트를 동기화`한다는 철학에 초점을 두고 useEffectEvent 훅을 이해하고 싶었습니다.
+
+그래서 모달을 열고 Esc 키로 닫을 수 있는 간단한 코드를 만들어 보았습니다.
+
+```tsx
+export default function TestComponent() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <section>
+      <button type="button" onClick={() => setIsOpen(true)}>
+        모달 열기
+      </button>
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-card border border-border rounded-lg p-6 max-w-sm shadow-lg">
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="px-3 py-2 bg-muted rounded"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+```
+
+위 코드는 effect 안에서 `onKeyDown`을 정의하고, 의존성 배열에 `isOpen`을 넣어서 Esc 키를 눌렀을 때 항상 최신 `isOpen`을 참조하게 만든 당연한 코드이며 동작 자체는 문제가 없습니다.
+
+하지만 `isOpen`이 바뀔 때마다 effect가 다시 실행되기 때문에, 그때마다 cleanup에서 리스너가 해제된 뒤 effect가 한 번 더 돌면서 리스너가 다시 등록됩니다. 즉 모달을 열거나 닫을 때마다 **리스너 해제 → 재등록**이 반복되는 셈입니다.
+
+window라는 `외부 시스템`과의 연결은 사실 한 번만 맺어 두면 되는데 state 하나가 바뀔 때마다 연결을 끊었다 다시 거는 셈이게 되고, React가 재차 말하는 `**외부 시스템과 컴포넌트의 동기화**`라는 useEffect 용도와는 거리가 멀다고도 느껴집니다.
