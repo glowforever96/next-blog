@@ -13,18 +13,19 @@ thumbnail: "/images/thumbnails/nextjs.webp"
 
 ## 들어가며
 
-useEffectEvent 훅을 먼저 알아보기 전에 이 훅의 탄생 배경과 연관이 깊은 useEffect에 대한 정의를 다시 찾아봤고, React 공식문서에 따르면 첫 시작부터 useEffect 훅을 다음과 같이 정의하고 있습니다.
+useEffectEvent 훅을 먼저 알아보기 전에 이 훅의 탄생 배경과 연관이 깊은 useEffect에 대한 정의를 다시 찾아봤습니다.
+React 공식문서에 따르면 첫 시작부터 `useEffect` 훅을 다음과 같이 정의하고 있습니다.
 
-> useEffect는 외부 시스템과 컴포넌트를 동기화하는 React Hook입니다.
+> **useEffect는 외부 시스템과 컴포넌트를 동기화하는 React Hook입니다.**
 
 그렇다면 React에서 정의한 외부 시스템은 무엇인지 알아봐야겠습니다. 공식 문서는 다음과 같이 정의합니다.
 
 [useEffect 공식 문서](https://ko.react.dev/reference/react/useEffect)
 
 - Effect는 (채팅 시스템과 같은) 외부 시스템과 컴포넌트가 동기화를 유지할 수 있도록 합니다. 외부 시스템은 React에 의해 컨트롤되지 않는 모든 코드를 의미합니다. 예를 들어:
-  - setInterval()에 의해 관리되는 타이머 또는 clearInterval().
-  - window.addEventListener()을 이용한 이벤트 구독 또는 window.removeEventListener().
-  - animation.start()와 같은 서드 파티 애니메이션 라이브러리 API 또는 animation.reset().
+  - `setInterval()`에 의해 관리되는 타이머 또는 `clearInterval()`.
+  - `window.addEventListener()`을 이용한 이벤트 구독 또는 `window.removeEventListener()`.
+  - `animation.start()`와 같은 서드 파티 애니메이션 라이브러리 API 또는 `animation.reset()`.
 
 또한 useEffect가 필요하지 않은 경우에 대한 문서도 다양한 예시를 들어 자세히 제공해주네요.
 
@@ -32,13 +33,13 @@ useEffectEvent 훅을 먼저 알아보기 전에 이 훅의 탄생 배경과 연
 
 저 또한 "useEffect를 남발해선 안 된다!"라는 마인드셋은 있었지만, 머리는 알아도 몸이 안 따라주는 상황이 많았습니다. (귀찮으니까)
 
-결과적으로 두 가지 공식 문서를 비교하며 읽어보니, 그동안 useEffect에게 너무 많은 책임을 준 게 아닌가 반성하게 됐습니다. 이제부터는 useEffect의 짐을 조금이나마 덜어줄 수 있는 **useEffectEvent** 훅을 간단한 예시 코드와 함께 알아보려 합니다.
+결과적으로 두 가지 공식 문서를 비교하며 읽어보니, 그동안 useEffect에게 너무 많은 책임을 준 게 아닌가 반성하게 됐습니다. 이제부터는 useEffect의 짐을 조금이나마 덜어줄 수 있는 `useEffectEvent` 훅을 간단한 예시 코드와 함께 알아보려 합니다.
 
 ---
 
 ## useEffectEvent란?
 
-`useEffectEvent`는 **effect 안에서만 호출하는 **이벤트 로직\*\*을 분리해 주는 훅입니다.
+`useEffectEvent`는 effect 안에서만 호출하는 이벤트 로직을 분리해 주는 훅이라고 합니다.
 
 매개변수로 콜백 함수를 받으며, 이 콜백 함수는 실행할때마다 항상 최신의 props와 state 값을 참조해 오래된 클로저 문제를 피할 수 있다고 합니다.
 
@@ -50,7 +51,7 @@ useEffectEvent 훅을 먼저 알아보기 전에 이 훅의 탄생 배경과 연
 
 ## 기존 방식의 한계
 
-저는 React가 말하는 useEffect의 용도인 `외부 시스템과 컴포넌트를 동기화`한다는 철학에 초점을 두고 useEffectEvent 훅을 이해하고 싶었습니다.
+저는 React가 말하는 useEffect의 용도인 **외부 시스템과 컴포넌트를 동기화**한다는 철학에 초점을 두고 `useEffectEvent` 훅을 이해하고 싶었습니다.
 
 그래서 모달을 열고 Esc 키로 닫을 수 있는 간단한 코드를 만들어 보았습니다.
 
@@ -100,6 +101,104 @@ export default function TestComponent() {
 
 위 코드는 effect 안에서 `onKeyDown`을 정의하고, 의존성 배열에 `isOpen`을 넣어서 Esc 키를 눌렀을 때 항상 최신 `isOpen`을 참조하게 만든 당연한 코드이며 동작 자체는 문제가 없습니다.
 
-하지만 `isOpen`이 바뀔 때마다 effect가 다시 실행되기 때문에, 그때마다 cleanup에서 리스너가 해제된 뒤 effect가 한 번 더 돌면서 리스너가 다시 등록됩니다. 즉 모달을 열거나 닫을 때마다 **리스너 해제 → 재등록**이 반복되는 셈입니다.
+하지만 `isOpen`이 바뀔 때마다 effect가 다시 실행되기 때문에, 그때마다 cleanup에서 리스너가 해제된 뒤 effect가 한 번 더 돌면서 리스너가 다시 등록됩니다.
 
-window라는 `외부 시스템`과의 연결은 사실 한 번만 맺어 두면 되는데 state 하나가 바뀔 때마다 연결을 끊었다 다시 거는 셈이게 되고, React가 재차 말하는 `**외부 시스템과 컴포넌트의 동기화**`라는 useEffect 용도와는 거리가 멀다고도 느껴집니다.
+즉, 모달을 열거나 닫을 때마다 **리스너 해제 → 재등록**이 반복되는 셈입니다.
+
+window라는 **외부 시스템**과의 연결은 사실 한 번만 맺어 두면 되는데 state 하나가 바뀔 때마다 연결을 끊었다 다시 거는 셈이게 되고, React가 재차 말하는 **외부 시스템과 컴포넌트의 동기화**라는 useEffect 용도와는 거리가 멀다고도 느껴집니다.
+
+---
+
+## 오래된 클로저 문제
+
+그렇다면 공식문서에서 말하는 오래된 클로저 문제가 발생하는 경우는 어떤 경우일까요?
+
+```tsx
+// 생략 ...
+useEffect(() => {
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && isOpen) {
+      setIsOpen(false);
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
+
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+  };
+}, []);
+```
+
+오래된 클로저 문제를 보기 위해 기존 예시 코드에서 useEffect의 의존성 배열을 제거 해주었습니다. 당연히 동작하지 않는 코드이며 lint 단계에서 흔히 보게되는 의존성 배열 경고를 맞이하게 됩니다.
+
+effect에 넘기는 콜백은 **그 effect가 실행된 렌더 시점의 스코프**를 클로저로 갖습니다. 그래서 effect 안에서 만든 `onKeyDown`도 effect가 돌았을 때의 `isOpen === false`만 참조하게 됩니다.
+
+이렇게 콜백이 생성 시점의 값만 보고 나중에 state가 바뀌어도 반영되지 않는 것이 **오래된 클로저(stale closure)** 문제입니다.
+
+이렇게 간단한 예시 코드에서도 의존성 배열을 넣게되면 리스너 재등록, 빼면 오래된 클로저 문제를 맞이하게 되는 딜레마에 빠지게 됩니다. **외부 시스템과의 동기화**라는 useEffect의 철학과는 어긋나는 양상이 계속 되는거 같습니다.
+
+이제는 이런 `useEffect`의 기존 철학과 맞물리는 `useEffectEvent` 훅을 어서 써봐야 할 것 같습니다.
+
+---
+
+## useEffectEvent 사용 예시
+
+같은 모달 + Esc 키 예제를 `useEffectEvent`로 바꾸면 대략 아래와 같습니다.
+
+기존 이벤트 핸들러 함수를 훅의 콜백으로 넣어주기만 하면 됩니다.
+
+```tsx
+const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+  if (e.key === "Escape" && isOpen) {
+    setIsOpen(false);
+  }
+});
+
+useEffect(() => {
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}, []); // isOpen을 deps에 넣지 않아도 됨
+```
+
+`onKeyDown`을 `useEffectEvent`로 선언하면, 이 함수는 호출되는 시점의 최신 `isOpen`을 참조합니다. 그래서 effect의 의존성 배열에는 `isOpen`을 넣지 않아도 되고, 리스너는 마운트 시 한 번만 등록하면 됩니다.
+
+즉 “외부 시스템(window)과의 연결은 한 번만 맺고, 콜백만 그때그때 최신 state를 참조한다”는 식의 패턴으로 useEffect의 동기화 철학과도 잘 맞습니다.
+
+하지만, 공식문서에서는 몇가지 주의사항도 전달해 줍니다.
+
+- Effect 내부에서만 호출하세요
+- 의존성 지름길이 아닙니다
+- 비반응형 로직을 위해 사용하세요
+
+AI에게 나쁜 예시 코드를 부탁했고 함께 첨부하겠습니다.
+
+```tsx
+// ❌ 나쁜 예: "의존성 지름길"
+// userId가 바뀔 때마다 구독을 끊고 새로 연결해야 하는데,
+// deps에 넣기 싫어서 useEffectEvent로 빼버린 경우
+
+const onMessage = useEffectEvent((msg: Message) => {
+  console.log(`User ${userId} received:`, msg);
+});
+
+useEffect(() => {
+  const subscription = subscribeToUser(userId, onMessage);
+  return () => subscription.unsubscribe();
+}, []); // userId를 빼버림 → userId가 바뀌어도 구독이 갱신되지 않음!
+```
+
+```tsx
+// ✅ 올바른 예: userId가 바뀔 때 구독을 다시 설정해야 하므로 deps에 명시
+
+useEffect(() => {
+  const subscription = subscribeToUser(userId, (msg) => {
+    console.log(`User ${userId} received:`, msg);
+  });
+  return () => subscription.unsubscribe();
+}, [userId]);
+```
+
+## 마치며
+
+개인적으로는 정식 도입된 `useEffectEvent` 훅이 새로운 기능이라기보다는 기존 useEffect의 의도된 쓰임을 더 잘 지키게 해주는 도구에 가깝다고 생각합니다.
+저도 useEffect의 무분별한 사용을 자제하면서 (그동안 생각해보면 꼭 사용하지 않아도 된던 경우가 무수히 많습니다..) 새로운 훅도 사용할 케이스가 생긴다면 적극 사용해 봐야겠습니다.

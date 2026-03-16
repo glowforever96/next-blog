@@ -22,22 +22,24 @@ export default async function GuestbookList() {
 
   const { data: guestbook }: { data: Guestbook[] } = await res.json();
 
+  if (!guestbook) {
+    return (
+      <p className="text-muted-foreground text-center py-4">
+        아직 방명록이 없습니다. 첫 방명록을 남겨주세요!😅
+      </p>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-xl font-semibold text-foreground">
         방명록 ({guestbook?.length || 0})
       </h2>
-      {!guestbook || guestbook.length === 0 ? (
-        <p className="text-muted-foreground text-center py-4">
-          아직 방명록이 없습니다. 첫 방명록을 남겨주세요!😅
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-          {guestbook.map((item) => (
-            <GuestbookCard key={item.id} data={item} />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+        {guestbook.map((item) => (
+          <GuestbookCard key={item.id} data={item} />
+        ))}
+      </div>
     </section>
   );
 }
