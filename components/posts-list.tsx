@@ -44,9 +44,9 @@ export default async function PostsList({ searchParams }: PostsListProps) {
         className="flex flex-col gap-6 md:grid md:grid-cols-2 lg:flex lg:flex-col list-none p-0 m-0"
         aria-label="글 목록"
       >
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <li key={post.slug} className="contents">
-            <PostCard post={post} />
+            <PostCard post={post} priority={index === 0} />
           </li>
         ))}
       </ul>

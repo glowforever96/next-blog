@@ -3,7 +3,12 @@ import { BlogPost } from "@/types";
 import Link from "next/link";
 import Image from "next/image";
 
-export default function PostCard({ post }: { post: BlogPost }) {
+interface PostCardProps {
+  post: BlogPost;
+  priority?: boolean;
+}
+
+export default function PostCard({ post, priority = false }: PostCardProps) {
   return (
     <Link
       key={post.slug}
@@ -16,7 +21,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
             src={post.thumbnail}
             alt={post.title}
             fill
-            priority
+            priority={priority}
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 256px"
             className="object-cover"
           />
