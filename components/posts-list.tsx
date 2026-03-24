@@ -46,7 +46,7 @@ export default async function PostsList({ searchParams }: PostsListProps) {
       >
         {posts.map((post, index) => (
           <li key={post.slug} className="contents">
-            <PostCard post={post} priority={index === 0} />
+            <PostCard post={post} priority={index < 2} />
           </li>
         ))}
       </ul>
