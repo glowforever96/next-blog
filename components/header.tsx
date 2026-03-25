@@ -1,6 +1,8 @@
 import Link from "next/link";
 import HeaderClient from "./header-client";
 import ProgressClient from "./progress-client";
+import Search from "./search";
+import { getAllPosts } from "@/lib/mdx";
 
 const navItems = [
   {
@@ -21,10 +23,12 @@ const navItems = [
 ];
 
 export default function Header() {
+  const posts = getAllPosts();
+
   return (
     <header className="fixed w-full border-b backdrop-blur-xl bg-background/50 z-10 border-border">
       <ProgressClient />
-      <div className="w-full max-w-screen-xl mx-auto px-4 sm:px-6 md:px-8 h-14 flex items-center justify-between">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 h-14 flex items-center justify-between">
         <nav
           className="gap-3 md:gap-5 flex items-center"
           aria-label="메인 네비게이션"
@@ -35,7 +39,10 @@ export default function Header() {
             </Link>
           ))}
         </nav>
-        <HeaderClient />
+        <div className="flex items-center gap-2">
+          <Search posts={posts} />
+          <HeaderClient />
+        </div>
       </div>
     </header>
   );

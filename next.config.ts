@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   transpilePackages: ["next-mdx-remote"],
   images: {
-    minimumCacheTTL: 31536000,
     remotePatterns: [
       {
         protocol: "https",
