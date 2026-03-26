@@ -33,11 +33,11 @@ export default function Search({ posts }: SearchProps) {
       <Button
         variant="outline"
         size="sm"
-        className="text-xs gap-4"
+        className="text-xs gap-4 w-[80px] md:w-[120px] lg:w-[190px]"
         onClick={() => handleOpenChange(true)}
       >
         포스트 검색...
-        <Kbd>⌘K</Kbd>
+        <Kbd className="hidden md:block">⌘K</Kbd>
       </Button>
       <CommandDialog
         open={open}
