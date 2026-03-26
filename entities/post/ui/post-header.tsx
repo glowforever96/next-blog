@@ -1,14 +1,17 @@
 import TimeClient from "@/shared/ui/time-client";
 import { formatAbsoluteDate } from "@/shared/lib/date";
+import ViewCounter from "./view-counter";
 
 export default function PostHeader({
   title,
   date,
   tags,
+  slug,
 }: {
   title: string;
   date: string;
   tags: string[];
+  slug: string;
 }) {
   const fallbackText = formatAbsoluteDate({ date });
 
@@ -18,6 +21,7 @@ export default function PostHeader({
         <h1 className="text-4xl font-bold mb-4 text-foreground">{title}</h1>
         <div className="flex items-center gap-4 text-muted-foreground">
           <TimeClient date={date} fallbackText={fallbackText} />
+          <ViewCounter slug={slug} />
         </div>
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           {tags.map((tag) => (

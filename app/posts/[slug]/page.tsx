@@ -106,7 +106,12 @@ export default async function PostPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <article>
-        <PostHeader title={post.title} date={post.date} tags={post.tags} />
+        <PostHeader
+          title={post.title}
+          date={post.date}
+          tags={post.tags}
+          slug={slug}
+        />
         <PostBody content={post.content} />
       </article>
     </>

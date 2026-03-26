@@ -8,3 +8,10 @@ export const guestbookTable = pgTable("guestbook", {
   isEdited: boolean("is_edited").notNull().default(false),
   createdAt: text("created_at").notNull(),
 });
+
+export const postViewsTable = pgTable("post_views", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  slug: text().notNull(),
+  ip: text().notNull(),
+  viewedAt: text("viewed_at").notNull(),
+});
