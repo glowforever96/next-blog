@@ -1,5 +1,5 @@
 import { MetadataRoute } from "next";
-import { getAllPosts } from "@/lib/mdx";
+import { getAllPosts } from "@/entities/post/api/mdx";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const posts = getAllPosts();

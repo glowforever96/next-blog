@@ -1,5 +1,5 @@
-import AboutBody from "@/components/about-body";
-import AboutHeader from "@/components/about-header";
+import AboutBody from "@/widgets/about/ui/about-body";
+import AboutHeader from "@/widgets/about/ui/about-header";
 import { Metadata } from "next";
 
 export function generateMetadata(): Metadata {

@@ -1,8 +1,8 @@
-import { getSidebarData } from "@/lib/sidebar";
-import Sidebar from "@/components/sidebar";
-import PostsList from "@/components/posts-list";
+import { getSidebarData } from "@/entities/post/lib/sidebar";
+import Sidebar from "@/widgets/sidebar/ui/sidebar";
+import PostsList from "@/widgets/posts-list/ui/posts-list";
 import { Suspense } from "react";
-import { getAllPosts } from "@/lib/mdx";
+import { getAllPosts } from "@/entities/post/api/mdx";
 
 interface HomeProps {
   searchParams: Promise<{ c?: string; t?: string; page?: string }>;

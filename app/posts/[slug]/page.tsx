@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { getAllPostSlugs, getPostBySlug } from "@/lib/mdx";
-import PostHeader from "@/components/post-header";
-import PostBody from "@/components/post-body";
+import { getAllPostSlugs, getPostBySlug } from "@/entities/post/api/mdx";
+import PostHeader from "@/entities/post/ui/post-header";
+import PostBody from "@/entities/post/ui/post-body";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();

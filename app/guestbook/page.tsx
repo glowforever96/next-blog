@@ -1,5 +1,5 @@
-import GuestBookForm from "@/components/guestbook-form";
-import GuestbookList from "@/components/guestbook-list";
+import GuestBookForm from "@/features/guestbook/ui/guestbook-form";
+import GuestbookList from "@/features/guestbook/ui/guestbook-list";
 
 export default function GuestbookPage() {
   return (
