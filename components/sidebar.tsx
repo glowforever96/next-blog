@@ -4,13 +4,20 @@ import { SidebarData } from "@/lib/sidebar";
 import { useSidebarStore } from "@/store/sidebar-store";
 import { XIcon } from "lucide-react";
 import { ModeToggle } from "./mode-toggle";
+import Search from "./search";
+import { BlogPost } from "@/types";
 
 interface SidebarProps {
   sidebarData: SidebarData;
   categoryCounts: { [key: string]: number };
+  posts: BlogPost[];
 }
 
-export default function Sidebar({ sidebarData, categoryCounts }: SidebarProps) {
+export default function Sidebar({
+  sidebarData,
+  categoryCounts,
+  posts,
+}: SidebarProps) {
   const { isOpen, close } = useSidebarStore();
 
   const SidebarContent = () => (
@@ -70,13 +77,16 @@ export default function Sidebar({ sidebarData, categoryCounts }: SidebarProps) {
         <div className="p-5 relative">
           <div className="flex justify-between items-center mb-2 py-2 px-3 absolute top-0 right-0 w-full border-b border-border">
             <ModeToggle />
-            <button
-              onClick={close}
-              className="cursor-pointer p-2 hover:bg-muted rounded-lg transition-colors"
-              aria-label="Close sidebar"
-            >
-              <XIcon size={24} className="text-foreground" />
-            </button>
+            <div className="flex items-center gap-1">
+              <Search posts={posts} isMobileView />
+              <button
+                onClick={close}
+                className="cursor-pointer p-2 hover:bg-muted rounded-lg transition-colors"
+                aria-label="Close sidebar"
+              >
+                <XIcon size={24} className="text-foreground" />
+              </button>
+            </div>
           </div>
           <div className="mt-12">
             <SidebarContent />

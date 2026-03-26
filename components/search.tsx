@@ -16,9 +16,10 @@ import { Kbd } from "./ui/kbd";
 
 interface SearchProps {
   posts: BlogPost[];
+  isMobileView?: boolean;
 }
 
-export default function Search({ posts }: SearchProps) {
+export default function Search({ posts, isMobileView = false }: SearchProps) {
   const {
     open,
     handleOpenChange,
@@ -33,7 +34,11 @@ export default function Search({ posts }: SearchProps) {
       <Button
         variant="outline"
         size="sm"
-        className="text-xs gap-4 w-[80px] md:w-[120px] lg:w-[190px]"
+        className={`text-xs gap-4 ${
+          isMobileView
+            ? "flex"
+            : "hidden md:inline-flex md:w-[120px] lg:w-[190px]"
+        }`}
         onClick={() => handleOpenChange(true)}
       >
         포스트 검색...
