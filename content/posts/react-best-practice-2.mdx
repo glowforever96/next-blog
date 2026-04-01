@@ -1,0 +1,232 @@
+---
+title: "Vercel의 React Best Practices 톺아보기[2] (번들 크기 최적화)"
+date: "2026-04-03"
+description: "React Best Practices를 읽어보며"
+metaDescription: "Vercel React Best Practices 시리즈 2편으로, 배럴 import 회피, 동적 import, 조건부 로딩, preload 전략까지 번들 크기 최적화 핵심을 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/nextjs.webp"
+---
+
+## 2. 번들 크기 최적화 - 매우 중요
+
+### 2.1 Avoid Barrel File Imports (배럴 파일 import 피하기)
+
+- 영향도: 매우 중요 (CRITICAL / import에 200~800ms 소요, 빌드 지연)
+
+배럴이 아닌 **실제 소스 파일에서 직접** 가져오세요. 그래야 쓰지도 않는 모듈이 수천 개까지 딸려 오는 일을 막을 수 있습니다. **배럴 파일**이란 여러 모듈을 다시 export하는 진입점으로, 예를 들어 `export * from './module'`를 쓰는 `index.js` 같은 파일을 말합니다.
+
+유명한 아이콘·컴포넌트 라이브러리 배럴에는 **최대 수천~만 단위 re-export**가 들어 있는 경우가 많습니다. React 패키지 중 일부는 **그걸 import하는 것만으로도 200~800ms**가 들어가 개발 체감과 **프로덕션 첫 기동**에도 모두 영향을 줍니다.
+
+**트리 셰이킹이 잘 안 먹히는 이유:** 라이브러리를 번들 밖 **external**로 두면 번들러가 그래프를 줄여 주기 어렵습니다. 반대로 번들에 넣어 트리 셰이킹을 켜면, 전체 모듈 그래프를 분석해야 해서 **빌드가 눈에 띄게 느려질 수 있습니다.**
+
+**잘못된 예 (라이브러리 전체가 딸려 옴):**
+
+```tsx
+import { Check, X, Menu } from "lucide-react";
+// dev에서 모듈 1,583개 로드, 약 2.8s 추가 등
+// 첫 로딩마다 런타임 200~800ms 부담
+
+import { Button, TextField } from "@mui/material";
+// dev에서 모듈 2,225개 로드, 약 4.2s 추가 등
+```
+
+**올바른 예 — Next.js 13.5+ (권장):**
+
+```js
+// next.config.js — 빌드 시 배럴 import를 자동으로 최적화
+module.exports = {
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@mui/material"],
+  },
+};
+```
+
+```tsx
+// 평소 쓰던 import 그대로 — Next가 직접 import로 바꿔 줌
+import { Check, X, Menu } from "lucide-react";
+// TypeScript 타입·에디터 자동완성 유지, 경로는 손으로 안 짬
+```
+
+배럴 import 비용은 없애면서도 **TypeScript 타입 안전성과 에디터 자동완성**을 그대로 쓸 수 있어 이 방식이 권장됩니다.
+
+**올바른 예 — 직접 import (Next.js가 아닌 프로젝트):**
+
+```tsx
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+// 쓰는 것만 로드
+```
+
+> **TypeScript 주의:** 일부 라이브러리는 **깊은 경로**용 `.d.ts`를 넣어 주지 않습니다. 특히 `lucide-react`는 `lucide-react/dist/esm/icons/check`처럼 가져오면 타입이 암묵적 `any`로 잡혀 `strict`나 `noImplicitAny`에서 오류가 날 수 있습니다. 가능하면 `optimizePackageImports`를 쓰고, 직접 경로를 쓸 거면 그 **하위 경로에 타입이 붙어 있는지** 라이브러리 쪽을 먼저 확인하세요.
+
+이런 최적화를 쓰면 dev 부팅은 대략 15~70% 빠르고, 빌드는 약 28%, **첫 기동**은 약 40% 빨라지는 등의 보고가 있으며 HMR도 체감상 빨라집니다.
+
+_HMR(Hot Module Replacement) - 개발 서버에서 파일을 저장했을 때 페이지 전체를 새로고침하지 않고, 바뀐 모듈만 런타임에 갈아 끼우는 방식_
+
+자주 해당되는 라이브러리: `lucide-react`, `@mui/material`, `@mui/icons-material`, `@tabler/icons-react`, `react-icons`, `@headlessui/react`, `@radix-ui/react-*`, `lodash`, `ramda`, `date-fns`, `rxjs`, `react-use`.
+
+참고: [How we optimized package imports in Next.js](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js)
+
+---
+
+### 2.2 Conditional Module Loading (조건부 모듈 로딩)
+
+- 영향도: 높음 (HIGH / 필요할 때만 대용량 데이터를 로드)
+
+**무거운 데이터, 모듈 전부**를 한꺼번에 받아 오지 말고, **실제로 그 기능을 쓰는 순간**에만 `import()`로 나누어 로드하세요.
+
+**예시 (애니메이션 프레임 지연 로드):**
+
+```tsx
+function AnimationPlayer({
+  enabled,
+  setEnabled,
+}: {
+  enabled: boolean;
+  setEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const [frames, setFrames] = useState<Frame[] | null>(null);
+
+  useEffect(() => {
+    // 브라우저에서만 동적 import — SSR 서버 번들에 끼지 않게
+    if (enabled && !frames && typeof window !== "undefined") {
+      import("./animation-frames.js")
+        .then((mod) => setFrames(mod.frames))
+        .catch(() => setEnabled(false));
+    }
+  }, [enabled, frames, setEnabled]);
+
+  if (!frames) return <Skeleton />;
+  return <Canvas frames={frames} />;
+}
+```
+
+`typeof window !== 'undefined'`는 **브라우저에서만** 이 분기를 타게 해서, 위 동적 import가 **SSR용 서버 번들에 섞이지 않도록** 돕습니다. 서버에서는 `window`가 없으니 해당 `import()`는 클라이언트에서만 실행되고, 서버 번들 크기와 빌드 속도를 최적화합니다.
+
+---
+
+### 2.3 Defer Non-Critical Third-Party Libraries (중요하지 않은 타사 라이브러리는 나중에 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 하이드레이션 이후 로드)
+
+분석, 로깅, 에러 트래킹 같은 건 **사용자 조작을 막지 않아도 됩니다.** **하이드레이션이 끝난 뒤**에 로드하세요.
+
+**잘못된 예 (초기 번들을 부담스럽게 함):**
+
+```tsx
+import { Analytics } from "@vercel/analytics/react";
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Analytics />
+      </body>
+    </html>
+  );
+}
+```
+
+**올바른 예 (하이드레이션 이후 로드):**
+
+```tsx
+import dynamic from "next/dynamic";
+
+const Analytics = dynamic(
+  () => import("@vercel/analytics/react").then((m) => m.Analytics),
+  { ssr: false } // 서버 HTML에는 안 실리고 클라이언트에서만
+);
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Analytics />
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+### 2.4 Dynamic Imports for Heavy Components (무거운 컴포넌트는 동적 import 하세요.)
+
+- 영향도: 매우 중요 (CRITICAL / TTI, LCP에 직접 영향)
+
+**첫 화면에 꼭 필요하지 않은** 큰 컴포넌트는 `next/dynamic`으로 **지연 로드**하세요.
+
+**잘못된 예 (Monaco가 메인 청크에 ~300KB까지 묶임):**
+
+```tsx
+import { MonacoEditor } from "./monaco-editor";
+
+function CodePanel({ code }: { code: string }) {
+  return <MonacoEditor value={code} />;
+}
+```
+
+**올바른 예 (Monaco는 필요할 때만 로드):**
+
+```tsx
+import dynamic from "next/dynamic";
+
+const MonacoEditor = dynamic(
+  () => import("./monaco-editor").then((m) => m.MonacoEditor),
+  { ssr: false } // 에디터는 보통 클라이언트 전용
+);
+
+function CodePanel({ code }: { code: string }) {
+  return <MonacoEditor value={code} />;
+}
+```
+
+---
+
+### 2.5 Preload Based on User Intent (사용자 의도에 맞춰서 미리 로드하세요.)
+
+- 영향도: 중간 (MEDIUM / 체감 대기 시간 줄임)
+
+필요해지기 **직전**에 무거운 번들을 미리 받아 두면 **체감 대기 시간**을 줄일 수 있습니다.
+
+**예시 (호버/포커스 시 preload):**
+
+```tsx
+function EditorButton({ onClick }: { onClick: () => void }) {
+  // 사용자 입력 직전(호버/포커스)에 미리 로드
+  const preload = () => {
+    if (typeof window !== "undefined") {
+      void import("./monaco-editor");
+    }
+  };
+
+  return (
+    <button onMouseEnter={preload} onFocus={preload} onClick={onClick}>
+      Open Editor
+    </button>
+  );
+}
+```
+
+**예시 (기능 플래그가 켜졌을 때 preload):**
+
+```tsx
+function FlagsProvider({ children, flags }: Props) {
+  useEffect(() => {
+    // 기능이 켜진 사용자에게만 선로딩
+    if (flags.editorEnabled && typeof window !== "undefined") {
+      void import("./monaco-editor").then((mod) => mod.init());
+    }
+  }, [flags.editorEnabled]);
+
+  return (
+    <FlagsContext.Provider value={flags}>{children}</FlagsContext.Provider>
+  );
+}
+```
+
+`typeof window !== 'undefined'` 검사로 preload용 동적 import가 **서버 번들에 포함되지 않게** 막을 수 있어, 서버 번들 크기와 빌드 속도를 최적화합니다.

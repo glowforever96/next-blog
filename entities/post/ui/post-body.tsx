@@ -12,7 +12,7 @@ export default function PostBody({ content }: { content: string }) {
     <>
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
         <div className="flex-1 w-full min-w-0">
-          <div className="prose prose-lg max-w-none w-full">
+          <div className="prose prose-lg max-w-none w-full" data-toc-root>
             <MDXRemote
               source={content}
               components={MDXComponents}

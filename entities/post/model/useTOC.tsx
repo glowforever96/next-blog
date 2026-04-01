@@ -11,7 +11,12 @@ function useTOC() {
   const [activeId, setActiveId] = useState<string>("");
 
   useEffect(() => {
-    const headingElements = document.querySelectorAll("h1, h2, h3, h4");
+    const root = document.querySelector<HTMLElement>("[data-toc-root]");
+    if (!root) {
+      setHeadingInfo([]);
+      return;
+    }
+    const headingElements = root.querySelectorAll("h1, h2, h3, h4");
     const headingList: Heading[] = [];
 
     headingElements.forEach((element) => {
