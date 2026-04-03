@@ -1,0 +1,692 @@
+---
+title: "Vercel의 React Best Practices 톺아보기 [3]"
+date: "2026-04-05"
+description: "React Best Practices를 읽어보며 (서버사이드 성능)"
+metaDescription: "Vercel React Best Practices 시리즈 3편으로, Next.js·RSC 서버사이드 성능을 다룹니다. 서버 액션 인증·인가, RSC 직렬화 최적화, 요청 데이터 모듈 공유 주의, LRU·React.cache, 정적 I/O 호이스팅, 컴포지션 병렬 페칭·중첩 Promise 패턴, after() 비차단 작업까지 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/rbp.webp"
+---
+
+## 3. 서버사이드 성능 - 높음
+
+### 3.1 Authenticate Server Actions Like API Routes (서버 액션도 API Routes처럼 인증/인가를 검증하세요.)
+
+- 영향도: 매우 중요 (CRITICAL / 서버 변경 작업에 대한 무단 접근 방지)
+
+서버 액션(`"use server"` 함수)은 API Routes처럼 **공개 엔드포인트로 직접 호출될 수 있습니다.** 그래서 미들웨어, 레이아웃 가드, 페이지 단 체크만 믿지 말고, **각 서버 액션 내부에서** 인증(authentication)과 인가(authorization)를 항상 검증해야 합니다.
+
+Next.js 공식 문서도 같은 취지로 서버 액션을 공개 API 엔드포인트와 동일한 보안 기준으로 다루고, 해당 사용자가 변경 작업을 수행해도 되는지 검증하라고 안내합니다.
+
+**잘못된 예 (인증 체크 없음):**
+
+```typescript
+"use server";
+
+export async function deleteUser(userId: string) {
+  // 누구나 호출 가능: 인증 체크 없음
+  await db.user.delete({ where: { id: userId } });
+  return { success: true };
+}
+```
+
+**올바른 예 (액션 내부에서 인증):**
+
+```typescript
+"use server";
+
+import { verifySession } from "@/lib/auth";
+import { unauthorized } from "@/lib/errors";
+
+export async function deleteUser(userId: string) {
+  // 1) 액션 내부에서 인증 확인
+  const session = await verifySession();
+
+  if (!session) {
+    throw unauthorized("로그인이 필요합니다");
+  }
+
+  // 2) 인가 확인(권한/본인 여부)
+  if (session.user.role !== "admin" && session.user.id !== userId) {
+    throw unauthorized("다른 사용자는 삭제할 수 없습니다");
+  }
+
+  await db.user.delete({ where: { id: userId } });
+  return { success: true };
+}
+```
+
+**입력 검증까지 포함한 예:**
+
+```typescript
+"use server";
+
+import { verifySession } from "@/lib/auth";
+import { z } from "zod";
+
+const updateProfileSchema = z.object({
+  userId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  email: z.string().email(),
+});
+
+export async function updateProfile(data: unknown) {
+  // 1) 입력 검증
+  const validated = updateProfileSchema.parse(data);
+
+  // 2) 인증
+  const session = await verifySession();
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  // 3) 인가(본인만 수정 가능)
+  if (session.user.id !== validated.userId) {
+    throw new Error("Can only update own profile");
+  }
+
+  // 4) 마지막에 변경 작업 수행
+  await db.user.update({
+    where: { id: validated.userId },
+    data: {
+      name: validated.name,
+      email: validated.email,
+    },
+  });
+
+  return { success: true };
+}
+```
+
+참고: [https://nextjs.org/docs/app/guides/authentication](https://nextjs.org/docs/app/guides/authentication)
+
+---
+
+### 3.2 Avoid Duplicate Serialization in RSC Props (RSC Props에서 중복 직렬화를 방지하세요.)
+
+- 영향도: 낮음 (ROW / 중복 직렬화를 줄여 네트워크 페이로드 감소)
+
+RSC → 클라이언트 직렬화는 값(value)이 아니라 **참조(reference)** 기준으로 중복 제거됩니다.  
+같은 참조를 재사용하면 한 번만 직렬화되고, 새 참조를 만들면 다시 직렬화됩니다.
+
+_여기서 **직렬화 중복**은 내용이 비슷하더라도 참조가 달라진 데이터를 RSC payload에 다시 실어 보내는 일을 뜻합니다._
+
+`.toSorted()`, `.filter()`, `.map()` 같은 변환은 서버보다 클라이언트에서 처리하는 편이 좋습니다.
+
+**잘못된 예 (배열 중복 전송):**
+
+```tsx
+// RSC: 문자열 6개 전송 (배열 2개 × 항목 3개)
+<ClientList usernames={usernames} usernamesOrdered={usernames.toSorted()} />
+```
+
+**올바른 예 (문자열 3개만 전송):**
+
+```tsx
+// RSC: 원본을 한 번만 보냄
+<ClientList usernames={usernames} />;
+
+// Client: 여기서 변환
+("use client");
+const sorted = useMemo(() => [...usernames].sort(), [usernames]);
+```
+
+**중첩 중복 제거 동작:**
+
+중복 제거는 재귀적으로 동작하며, 데이터 타입에 따라 체감이 다릅니다.
+
+- `string[]`, `number[]`, `boolean[]`: **영향 큼** - 배열과 원시값이 통째로 중복됨
+- `object[]`: **영향 작음** - 배열 껍데기는 중복되지만, 내부 객체는 참조 기준으로 중복 제거됨
+
+```typescript
+// string[] - 전체 중복
+usernames={['a','b']} sorted={usernames.toSorted()} // 문자열 4개 전송
+
+// object[] - 배열 구조만 중복
+users={[{id:1},{id:2}]} sorted={users.toSorted()} // 배열 2개 + 고유 객체 2개 (객체 4개 아님)
+```
+
+**중복 제거를 깨는 연산 (새 참조 생성):**
+
+- 배열: `.toSorted()`, `.filter()`, `.map()`, `.slice()`, `[...arr]`
+- 객체: `{...obj}`, `Object.assign()`, `structuredClone()`, `JSON.parse(JSON.stringify())`
+
+**추가 예시:**
+
+```tsx
+// ❌ 나쁨
+<C users={users} active={users.filter(u => u.active)} />
+<C product={product} productName={product.name} />
+
+// ✅ 좋음
+<C users={users} />
+<C product={product} />
+// 필터링/구조분해는 클라이언트에서
+```
+
+**예외:** 변환 비용이 크거나, 클라이언트에서 원본 데이터가 필요 없으면 파생 데이터를 넘겨도 됩니다.
+
+---
+
+### 3.3 Avoid Shared Module State for Request Data (요청 데이터를 모듈 전역 변수로 공유하지 마세요.)
+
+- 영향도: 높음 (HIGH / 동시성 버그, 요청 간 데이터 섞임 방지)
+
+React Server Components와 SSR 중인 클라이언트 컴포넌트에서는 **요청 단위 데이터**를 **모듈 레벨 가변 변수**로 나눠 쓰지 마세요. 서버 렌더는 같은 프로세스 안에서 **동시에** 실행될 수 있습니다. 한 렌더가 공유 모듈 상태에 쓰고 다른 렌더가 읽으면 **레이스 조건**(race condition), **요청끼리 데이터가 섞이는**(cross-request contamination) 문제, **다른 사용자 응답에 내 데이터가 끼어드는** 보안 문제까지 갈 수 있습니다.
+
+서버에서 모듈 스코프는 **요청 로컬이 아니라 프로세스 전역 공유 메모리**로 생각하세요.
+
+**잘못된 예 (동시 렌더에서 요청 데이터가 섞임):**
+
+```tsx
+let currentUser: User | null = null;
+
+export default async function Page() {
+  currentUser = await auth(); // 동시 요청이 같은 변수를 덮어씀
+  return <Dashboard />;
+}
+
+async function Dashboard() {
+  return <div>{currentUser?.name}</div>;
+}
+```
+
+두 요청이 시간이 겹치면, A가 `currentUser`에 값을 넣은 뒤 **A가 `Dashboard`를 다 그리기도 전에** B가 같은 변수를 덮어쓸 수 있습니다. 그러면 A에게 보이는 화면에 **B 사용자 정보**가 보일 수 있습니다.
+
+**올바른 예 (요청 데이터는 렌더 트리 안에만):**
+
+```tsx
+export default async function Page() {
+  const user = await auth();
+  return <Dashboard user={user} />;
+}
+
+function Dashboard({ user }: { user: User | null }) {
+  return <div>{user?.name}</div>;
+}
+```
+
+**안전한 예외:**
+
+- 모듈 스코프에 **한 번만** 올려 두는 불변 정적 자산이나 설정
+- **의도적으로** 요청 간 재사용하도록 설계된 공유 캐시(키가 올바를 때)
+- 요청, 사용자별 **가변 데이터를 담지 않는** 프로세스 전역 싱글톤
+
+정적 자산, 설정은 [모듈 레벨로 정적 I/O 끌어올리기](./server-hoist-static-io.md)를 참고하세요.
+
+---
+
+### 3.4 Cross-Request LRU Caching (요청 간 LRU 캐싱)
+
+- 영향도: 높음 (HIGH / 여러 요청에 걸쳐 캐시 재사용)
+
+`React.cache()`는 **한 요청 안**에서만 동작합니다. _(이번 HTTP 요청으로 RSC를 그리는 동안에만 중복 호출을 묶어 주고, 응답이 끝난 뒤 다음 요청에서는 이전 메모가 이어지지 않습니다.)_ 사용자가 버튼 A를 누른 뒤 이어서 버튼 B를 누르는 것처럼 **연속된 요청** 사이에 같은 데이터를 재사용하려면 LRU 캐시를 쓰세요.
+
+**구현 예:**
+
+```typescript
+import { LRUCache } from "lru-cache";
+
+const cache = new LRUCache<string, any>({
+  max: 1000,
+  ttl: 5 * 60 * 1000, // 5분
+});
+
+export async function getUser(id: string) {
+  const cached = cache.get(id);
+  if (cached) return cached;
+
+  const user = await db.user.findUnique({ where: { id } });
+  cache.set(id, user);
+  return user;
+}
+
+// 요청 1: DB 조회 후 결과를 캐시에 저장
+// 요청 2: 캐시 히트로 DB 조회 없음
+```
+
+사용자가 **짧은 시간에** 페이지/API를 여러 번 호출할 때마다 **같은 데이터**(예: 같은 사용자 정보)를 또 읽는다면, LRU에 잠깐 넣어 두고 다음 호출에서는 **DB 조회를 생략**할 수 있습니다.
+
+**왜 “배포 환경” 이야기가 나오나:** `LRUCache`는 **그 서버 한 대의 메모리**에만 있습니다. 서버가 다음 요청까지 **그대로 살아 있으면** 캐시도 남고 **매번 새로 뜨면** 캐시는 비는 셈입니다.
+
+- **[Fluid Compute](https://vercel.com/docs/fluid-compute) 같은 환경:** 한 서버가 여러 요청을 이어서 처리하는 경우가 많아서 메모리 캐시가 **요청 사이에도** 남기 쉽습니다. 그래서 **Redis 없이** LRU만으로도 체감이 클 수 있습니다.
+- **호출마다 프로세스가 새로 뜨는 서버리스:** 메모리 캐시가 자주 초기화되면, **여러 대가 같이 보는 Redis** 같은 걸 검토하는 편이 좋습니다.
+
+참고: [https://github.com/isaacs/node-lru-cache](https://github.com/isaacs/node-lru-cache)
+
+---
+
+### 3.5 Hoist Static I/O to Module Level (정적 I/O를 모듈 최상단으로 끌어올리세요.)
+
+- 영향도: 높음 (HIGH / 요청마다 반복되는 파일, 네트워크 I/O를 줄임)
+
+라우트 핸들러나 서버 함수에서 **정적 자산**(폰트, 로고, 이미지, 설정 파일 등)을 읽을 때는 **I/O를 모듈 최상단**으로 올리세요. 모듈 레벨 코드는 모듈이 **처음 import될 때 한 번** 실행되고, **매 요청마다** 실행되지 않습니다. 따라서 호출마다 파일을 다시 읽거나 네트워크로 다시 가져오는 낭비를 없앨 수 있습니다.
+
+**잘못된 예 (매 요청마다 폰트 파일 읽기):**
+
+```typescript
+// app/api/og/route.tsx
+import { ImageResponse } from "next/og";
+
+export async function GET(request: Request) {
+  // 매 요청마다 실행 — 비용 큼
+  const fontData = await fetch(
+    new URL("./fonts/Inter.ttf", import.meta.url)
+  ).then((res) => res.arrayBuffer());
+
+  const logoData = await fetch(
+    new URL("./images/logo.png", import.meta.url)
+  ).then((res) => res.arrayBuffer());
+
+  return new ImageResponse(
+    (
+      <div style={{ fontFamily: "Inter" }}>
+        <img src={logoData} />
+        Hello World
+      </div>
+    ),
+    { fonts: [{ name: "Inter", data: fontData }] }
+  );
+}
+```
+
+**올바른 예 (모듈 초기화 시 한 번만 로드):**
+
+```typescript
+// app/api/og/route.tsx
+import { ImageResponse } from "next/og";
+
+// 모듈 최상단: 모듈이 처음 import될 때 한 번만 실행
+const fontData = fetch(new URL("./fonts/Inter.ttf", import.meta.url)).then(
+  (res) => res.arrayBuffer()
+);
+
+const logoData = fetch(new URL("./images/logo.png", import.meta.url)).then(
+  (res) => res.arrayBuffer()
+);
+
+export async function GET(request: Request) {
+  // 이미 시작된 Promise들을 await
+  const [font, logo] = await Promise.all([fontData, logoData]);
+
+  return new ImageResponse(
+    (
+      <div style={{ fontFamily: "Inter" }}>
+        <img src={logo} />
+        Hello World
+      </div>
+    ),
+    { fonts: [{ name: "Inter", data: font }] }
+  );
+}
+```
+
+**올바른 예 (모듈 최상단에서 동기 `fs`):**
+
+```typescript
+// app/api/og/route.tsx
+import { ImageResponse } from "next/og";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+// 모듈 최상단 동기 읽기 — 모듈 로드 시에만 블로킹
+const fontData = readFileSync(join(process.cwd(), "public/fonts/Inter.ttf"));
+
+const logoData = readFileSync(join(process.cwd(), "public/images/logo.png"));
+
+export async function GET(request: Request) {
+  return new ImageResponse(
+    (
+      <div style={{ fontFamily: "Inter" }}>
+        <img src={logoData} />
+        Hello World
+      </div>
+    ),
+    { fonts: [{ name: "Inter", data: fontData }] }
+  );
+}
+```
+
+**잘못된 예 (호출마다 설정 읽기):**
+
+```typescript
+import fs from "node:fs/promises";
+
+export async function processRequest(data: Data) {
+  const config = JSON.parse(await fs.readFile("./config.json", "utf-8"));
+  const template = await fs.readFile("./template.html", "utf-8");
+
+  return render(template, data, config);
+}
+```
+
+**올바른 예 (설정·템플릿을 모듈 최상단으로):**
+
+```typescript
+import fs from "node:fs/promises";
+
+const configPromise = fs.readFile("./config.json", "utf-8").then(JSON.parse);
+const templatePromise = fs.readFile("./template.html", "utf-8");
+
+export async function processRequest(data: Data) {
+  const [config, template] = await Promise.all([
+    configPromise,
+    templatePromise,
+  ]);
+
+  return render(template, data, config);
+}
+```
+
+이 패턴을 쓰기 좋을 때:
+
+- OG 이미지용 폰트 로드
+- 정적 로고, 아이콘, 워터마크
+- 실행 중 바뀌지 않는 설정 파일 읽기
+- 이메일 템플릿 등 **요청과 무관하게 동일한** 정적 템플릿
+- 모든 요청에서 내용이 같은 정적 자산
+
+쓰지 말아야 할 때:
+
+- 요청·사용자마다 달라지는 자산
+- 실행 중 내용이 바뀔 수 있는 파일 (대신 TTL이 있는 캐시 등 검토)
+- 메모리에 계속 올려 두기엔 너무 큰 파일
+- 메모리에 오래 두면 안 되는 민감 데이터
+
+Vercel의 [Fluid Compute](https://vercel.com/docs/fluid-compute)를 사용하면 여러 동시 요청이 동일한 함수 인스턴스를 공유하므로 모듈 수준 캐싱이 특히 효과적입니다. 정적 에셋은 콜드 스타트로 인한 성능 저하 없이 요청 간에 메모리에 계속 로드된 상태로 유지됩니다.
+
+전통적인 서버리스에서는 콜드 스타트마다 모듈 코드가 다시 실행되지만, 웜(Warm)인 호출에서는 인스턴스가 회수되기 전까지 한 번 로드한 자산을 그대로 씁니다.
+
+---
+
+### 3.6 Minimize Serialization at RSC Boundaries (RSC 경계에서 직렬화 최소화)
+
+- 영향도: 높음 (HIGH / 전송 데이터 크기, 페이지 무게에 직결)
+
+서버 컴포넌트와 클라이언트 컴포넌트 **경계**를 넘을 때, 넘기는 객체의 프로퍼티는 **문자열 등으로 직렬화**되어 HTML 응답과 이어지는 RSC 요청 페이로드에 실립니다. 이 데이터 크기가 **페이지 무게와 로딩 시간**에 바로 영향을 주므로, **얼마나 작게 넘길지가 매우 중요합니다.** 클라이언트가 **실제로 쓰는 필드만** props로 넘기세요.
+
+**잘못된 예 (50개 필드가 모두 직렬화됨):**
+
+```tsx
+async function Page() {
+  const user = await fetchUser(); // 필드 50개
+  return <Profile user={user} />;
+}
+
+("use client");
+function Profile({ user }: { user: User }) {
+  return <div>{user.name}</div>; // 실제로는 name 하나만 사용
+}
+```
+
+**올바른 예 (필드 1개만 직렬화):**
+
+```tsx
+async function Page() {
+  const user = await fetchUser();
+  return <Profile name={user.name} />;
+}
+
+("use client");
+function Profile({ name }: { name: string }) {
+  return <div>{name}</div>;
+}
+```
+
+---
+
+### 3.7 Parallel Data Fetching with Component Composition (컴포지션으로 병렬 데이터 페칭)
+
+- 영향도: 매우 중요 (CRITICAL / 서버 쪽 워터폴 제거)
+
+React 서버 컴포넌트는 트리 구조 내에서 순차적으로 실행됩니다. 데이터 가져오기를 병렬화하려면 컴포지션을 사용하여 구조를 재구성하세요.
+
+**잘못된 예 (`Sidebar`가 `Page`의 fetch가 끝날 때까지 대기):**
+
+```tsx
+export default async function Page() {
+  const header = await fetchHeader();
+  return (
+    <div>
+      <div>{header}</div>
+      <Sidebar />
+    </div>
+  );
+}
+
+async function Sidebar() {
+  const items = await fetchSidebarItems();
+  return <nav>{items.map(renderItem)}</nav>;
+}
+```
+
+**올바른 예 (둘 다 동시에 fetch):**
+
+```tsx
+async function Header() {
+  const data = await fetchHeader();
+  return <div>{data}</div>;
+}
+
+async function Sidebar() {
+  const items = await fetchSidebarItems();
+  return <nav>{items.map(renderItem)}</nav>;
+}
+
+export default function Page() {
+  return (
+    <div>
+      <Header />
+      <Sidebar />
+    </div>
+  );
+}
+```
+
+**대안: `children` prop**
+
+```tsx
+async function Header() {
+  const data = await fetchHeader();
+  return <div>{data}</div>;
+}
+
+async function Sidebar() {
+  const items = await fetchSidebarItems();
+  return <nav>{items.map(renderItem)}</nav>;
+}
+
+function Layout({ children }: { children: ReactNode }) {
+  return (
+    <div>
+      <Header />
+      {children}
+    </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Layout>
+      <Sidebar />
+    </Layout>
+  );
+}
+```
+
+---
+
+### 3.8 Parallel Nested Data Fetching (중첩 데이터 병렬 페칭)
+
+- 영향도: 매우 중요 (CRITICAL / 서버 쪽 워터폴 제거)
+
+중첩된 데이터를 병렬로 가져올 때는 **항목마다** 의존하는 fetch를 **한 줄의 Promise 체인**으로 묶으세요. 그래야 **느린 한 항목**이 나머지 항목의 중첩 fetch까지 막지 않습니다.
+
+**잘못된 예 (느린 항목 하나가 모든 중첩 fetch를 막음):**
+
+```tsx
+const chats = await Promise.all(chatIds.map((id) => getChat(id)));
+
+const chatAuthors = await Promise.all(
+  chats.map((chat) => getUser(chat.author))
+);
+```
+
+100개 중 `getChat(id)` 하나가 매우 느리다면, 나머지 99개 채팅 데이터는 이미 준비됐는데 **작성자(`getUser`) fetch는 전부** 첫 번째 `Promise.all`이 끝날 때까지 시작되지 않습니다.
+
+**올바른 예 (항목마다 자체적으로 중첩 fetch를 체인):**
+
+```tsx
+const chatAuthors = await Promise.all(
+  chatIds.map((id) => getChat(id).then((chat) => getUser(chat.author)))
+);
+```
+
+항목마다 `getChat` → `getUser`를 독립적으로 이어 두면, **느린 chat 하나**가 다른 채팅의 작성자 fetch까지 막지 않습니다.
+
+---
+
+### 3.9 Per-Request Deduplication with React.cache() (React.cache()로 요청 단위 중복을 제거하세요.)
+
+- 영향도: 중간 (MEDIUM / 한 요청 안에서 중복 실행 제거)
+
+`React.cache()`( `import { cache } from 'react'` )는 서버 사이드 요청 중복 제거에 사용합니다. 인증이나 DB 조회에 특히 효과가 큽니다.
+
+**사용 예:**
+
+```typescript
+import { cache } from "react";
+
+export const getCurrentUser = cache(async () => {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  return await db.user.findUnique({
+    where: { id: session.user.id },
+  });
+});
+```
+
+**한 요청** 안에서 `getCurrentUser()`를 여러 번 호출해도 실제 쿼리는 **한 번**만 실행됩니다.
+
+**인자로 인라인 객체를 넘기지 마세요.**
+
+`React.cache()`는 캐시 키를 얕은 동등성(`Object.is`)으로 판단합니다. 호출할 때마다 새 객체 리터럴을 넘기면 참조가 매번 달라져 **캐시 히트가 나지 않습니다.**
+
+**잘못된 예 (항상 캐시 미스):**
+
+```typescript
+const getUser = cache(async (params: { uid: number }) => {
+  return await db.user.findUnique({ where: { id: params.uid } });
+});
+
+// 호출마다 새 객체 → 캐시에 안 걸림
+getUser({ uid: 1 });
+getUser({ uid: 1 }); // 캐시 미스, 쿼리 또 실행
+```
+
+**올바른 예 (캐시 히트):**
+
+```typescript
+const getUser = cache(async (uid: number) => {
+  return await db.user.findUnique({ where: { id: uid } });
+});
+
+// 원시값은 값으로 비교됨
+getUser(1);
+getUser(1); // 캐시 히트, 저장해 둔 결과 반환
+```
+
+객체를 꼭 넘겨야 하면 **같은 참조**를 재사용하세요:
+
+```typescript
+const params = { uid: 1 };
+getUser(params); // 쿼리 실행
+getUser(params); // 캐시 히트 (같은 참조)
+```
+
+**Next.js 관련 참고 사항:**
+
+Next.js에서는 `fetch`가 **요청 단위 메모이제이션**이 자동으로 적용됩니다. 동일한 URL과 옵션이면 **한 요청 안에서** 중복이 제거되므로, `fetch`만 쓸 때는 굳이 `React.cache()`를 또 씌울 필요가 없습니다. 다만 아래 같은 **fetch가 아닌 비동기 작업**에는 `React.cache()`가 여전히 유용합니다.
+
+- DB 조회 (Prisma, Drizzle 등)
+- 무거운 계산
+- 인증 확인
+- 파일 시스템 접근
+- 그 밖의 `fetch`가 아닌 비동기 작업
+
+컴포넌트 트리 곳곳에서 같은 작업이 반복될 때 `React.cache()`로 **한 요청 안에서만** 중복을 없애세요.
+
+참고: [React.cache 문서](https://react.dev/reference/react/cache)
+
+---
+
+### 3.10 Use after() for Non-Blocking Operations (비차단 작업에는 `after()`를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 응답 시간 단축)
+
+Next.js의 `after()`로 **응답을 보낸 뒤**에 실행할 작업을 예약하세요. 로깅, 분석, 기타 부수 효과로 인해 **응답이 차단되는 것을 방지** 할수 있습니다.
+
+**잘못된 예 (응답이 블로킹됨):**
+
+```tsx
+import { logUserAction } from "@/app/utils";
+
+export async function POST(request: Request) {
+  // 변경 반영
+  await updateDatabase(request);
+
+  // 로깅이 끝날 때까지 응답이 지연됨
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  await logUserAction({ userAgent });
+
+  return new Response(JSON.stringify({ status: "success" }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+```
+
+**올바른 예 (비차단):**
+
+```tsx
+import { after } from "next/server";
+import { headers, cookies } from "next/headers";
+import { logUserAction } from "@/app/utils";
+
+export async function POST(request: Request) {
+  // 변경 반영
+  await updateDatabase(request);
+
+  // 응답을 보낸 뒤 로깅
+  after(async () => {
+    const userAgent = (await headers()).get("user-agent") || "unknown";
+    const sessionCookie =
+      (await cookies()).get("session-id")?.value || "anonymous";
+
+    logUserAction({ sessionCookie, userAgent });
+  });
+
+  return new Response(JSON.stringify({ status: "success" }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+```
+
+응답은 즉시 전송되는 반면, 로깅은 **백그라운드**에서 이어집니다.
+
+**일반적인 사용 사례:**
+
+- 분석, 트래킹
+- 심사 로그
+- 알림 발송
+- 캐시 무효화
+- 정리(cleanup) 작업
+
+**주의:**
+
+- `after()`는 응답이 실패하거나 리다이렉트되어도 실행될 수 있습니다
+- Server Actions, Route Handlers, Server Components에서 사용할 수 있습니다
+
+참고: [https://nextjs.org/docs/app/api-reference/functions/after](https://nextjs.org/docs/app/api-reference/functions/after)
