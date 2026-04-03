@@ -1,0 +1,274 @@
+---
+title: "Vercel의 React Best Practices 톺아보기 [4]"
+date: "2026-04-06"
+description: "React Best Practices를 읽어보며 (클라이언트 사이드 데이터 페칭)"
+metaDescription: "Vercel React Best Practices 시리즈 4편으로, 클라이언트 데이터 페칭·이벤트 최적화를 다룹니다. 전역 리스너 중복 제거(useSWRSubscription), passive 터치·휠 리스너로 스크롤 지연 완화, SWR 자동 요청 중복 제거·mutation, localStorage 버전·최소 저장과 try-catch까지 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/rbp.webp"
+---
+
+## 4. 클라이언트 사이드 데이터 페칭 - 중상 (MEDIUM-HIGH)
+
+자동 데이터 중복 제거 및 효율적인 데이터 페칭 패턴을 통해 불필요한 네트워크 요청을 줄입니다.
+
+### 4.1 Deduplicate Global Event Listeners (전역 이벤트 리스너 중복 제거)
+
+- 영향도: 낮음 (LOW / N개 컴포넌트에 리스너 1개)
+
+`useSWRSubscription()`으로 **전역 이벤트 리스너**를 **여러 컴포넌트가 같이** 쓰도록 묶으세요.
+
+**잘못된 예 (훅을 쓴 곳이 N곳이면 리스너도 N개):**
+
+```tsx
+function useKeyboardShortcut(key: string, callback: () => void) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // 이 컴포넌트에 넘긴 단축키와 일치할 때만 실행
+      if (e.metaKey && e.key === key) {
+        callback();
+      }
+    };
+    // 훅을 쓴 컴포넌트마다 window에 리스너가 하나씩 추가됨
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [key, callback]);
+}
+```
+
+`useKeyboardShortcut`을 **여러 컴포넌트에서** (또는 한 컴포넌트에서 여러 번) 쓰면, **호출한 횟수만큼** `keydown` 리스너가 새로 붙습니다.
+
+**올바른 예 (훅을 쓴 곳은 많아도 리스너는 1개):**
+
+```tsx
+import useSWRSubscription from "swr/subscription";
+
+// 키별로 등록된 콜백을 모듈 단위 Map으로 관리 (브라우저 탭/클라이언트 전역)
+const keyCallbacks = new Map<string, Set<() => void>>();
+
+function useKeyboardShortcut(key: string, callback: () => void) {
+  // 컴포넌트마다: Map에 콜백만 넣었다 뺐다 (window 리스너는 아래 subscription 한 번만)
+  useEffect(() => {
+    if (!keyCallbacks.has(key)) {
+      keyCallbacks.set(key, new Set());
+    }
+    keyCallbacks.get(key)!.add(callback);
+
+    return () => {
+      const set = keyCallbacks.get(key);
+      if (set) {
+        set.delete(callback);
+        // 그 키에 등록된 콜백이 하나도 없으면 Map에서 키 제거
+        if (set.size === 0) {
+          keyCallbacks.delete(key);
+        }
+      }
+    };
+  }, [key, callback]);
+
+  // 동일한 구독 키면 SWR이 전역 리스너를 한 벌만 유지하기 쉬움
+  useSWRSubscription("global-keydown", () => {
+    const handler = (e: KeyboardEvent) => {
+      // 실제 키보드 이벤트는 여기 한 곳에서만 받고, 등록된 콜백들에 위임
+      if (e.metaKey && keyCallbacks.has(e.key)) {
+        keyCallbacks.get(e.key)!.forEach((cb) => cb());
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+}
+
+function Profile() {
+  // 아래 두 줄 모두 같은 window 리스너 + Map 라우팅을 공유
+  useKeyboardShortcut("p", () => {
+    /* ... */
+  });
+  useKeyboardShortcut("k", () => {
+    /* ... */
+  });
+  // ...
+}
+```
+
+---
+
+### 4.2 Use Passive Event Listeners for Scrolling Performance (스크롤 성능을 위해 passive 이벤트 리스너를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 리스너 때문에 생기는 스크롤 지연 완화)
+
+`touch`·`wheel` 계열 리스너에 **`{ passive: true }`**를 주면 브라우저가 스크롤을 더 빨리 시작할 수 있습니다. 기본적으로 브라우저는 리스너가 끝날 때까지 기다려 **`preventDefault()`가 호출될지** 확인하는데, 그동안 스크롤이 늦어질 수 있습니다.
+
+**잘못된 예:**
+
+```typescript
+useEffect(() => {
+  const handleTouch = (e: TouchEvent) => console.log(e.touches[0].clientX);
+  const handleWheel = (e: WheelEvent) => console.log(e.deltaY);
+
+  // passive 없음 → 브라우저는 스크롤 전에 이 핸들러 완료를 기다릴 수 있음
+  document.addEventListener("touchstart", handleTouch);
+  document.addEventListener("wheel", handleWheel);
+
+  return () => {
+    document.removeEventListener("touchstart", handleTouch);
+    document.removeEventListener("wheel", handleWheel);
+  };
+}, []);
+```
+
+**올바른 예:**
+
+```typescript
+useEffect(() => {
+  const handleTouch = (e: TouchEvent) => console.log(e.touches[0].clientX);
+  const handleWheel = (e: WheelEvent) => console.log(e.deltaY);
+
+  // passive: 이 핸들러는 preventDefault()를 쓰지 않는다고 약속 → 스크롤 최적화에 유리
+  document.addEventListener("touchstart", handleTouch, { passive: true });
+  document.addEventListener("wheel", handleWheel, { passive: true });
+
+  return () => {
+    document.removeEventListener("touchstart", handleTouch);
+    document.removeEventListener("wheel", handleWheel);
+  };
+}, []);
+```
+
+**passive를 쓰면 좋을 때:** 추적/분석, 로깅, **`preventDefault()`를 호출하지 않는** 모든 리스너.
+
+**passive를 쓰면 안 될 때:** 커스텀 스와이프, 커스텀 줌, **`preventDefault()`로 기본 스크롤/제스처를 막아야 하는** 리스너.
+
+---
+
+### 4.3 Use SWR for Automatic Deduplication (자동 중복 제거를 위해 SWR을 사용하세요.)
+
+- 영향도: 중상 (MEDIUM-HIGH / 자동 중복 제거)
+
+SWR은 **요청 중복 제거**, **캐시**, **재검증(revalidation)**을 컴포넌트 경계 너머에서 이어 주는 데 유리합니다.
+
+**잘못된 예 (중복 제거 없음, 컴포넌트마다 따로 fetch):**
+
+```tsx
+function UserList() {
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    // 이 컴포넌트가 마운트될 때마다 /api/users를 새로 요청
+    fetch("/api/users")
+      .then((r) => r.json())
+      .then(setUsers);
+  }, []);
+}
+```
+
+**올바른 예 (여러 컴포넌트가 같은 키면 요청 하나로 공유):**
+
+```tsx
+import useSWR from "swr";
+
+function UserList() {
+  // 같은 '/api/users' 키는 SWR이 한 번에 묶어 주고 캐시도 공유
+  const { data: users } = useSWR("/api/users", fetcher);
+}
+```
+
+**거의 안 바뀌는 데이터(불변에 가까운 데이터)용:**
+
+```tsx
+import { useImmutableSWR } from "@/lib/swr";
+
+function StaticContent() {
+  // 재검증을 최소화하는 래퍼 예시(프로젝트마다 구현이 다를 수 있음)
+  const { data } = useImmutableSWR("/api/config", fetcher);
+}
+```
+
+**변경(Mutation) 요청:**
+
+```tsx
+import { useSWRMutation } from "swr/mutation";
+
+function UpdateButton() {
+  // POST/PUT 등은 useSWRMutation으로 분리하는 편이 일반적
+  const { trigger } = useSWRMutation("/api/user", updateUser);
+  return <button onClick={() => trigger()}>Update</button>;
+}
+```
+
+참고: [https://swr.vercel.app](https://swr.vercel.app)
+
+---
+
+### 4.4 Version and Minimize localStorage Data (localStorage 데이터의 버전을 관리하고 최소화하세요.)
+
+- 영향도: 중간 (MEDIUM / 스키마 충돌을 방지하고 저장 공간을 줄임)
+
+키에 **버전 접두어(또는 접미어)**를 붙이고, **꼭 필요한 필드만** 저장하세요. 예전 포맷과 섞이는 **스키마 충돌**을 줄이고, 실수로 **민감한 값 전체**를 넣는 일도 막기 쉽습니다.
+
+**잘못된 예:**
+
+```typescript
+// 버전 없음, 객체 통째로 저장, 오류 처리 없음
+localStorage.setItem("userConfig", JSON.stringify(fullUserObject));
+const data = localStorage.getItem("userConfig");
+```
+
+**올바른 예:**
+
+```typescript
+const VERSION = "v2";
+
+function saveConfig(config: { theme: string; language: string }) {
+  try {
+    localStorage.setItem(`userConfig:${VERSION}`, JSON.stringify(config));
+  } catch {
+    // 시크릿/사생활 보호 모드, 할당량 초과, 비활성화 등에서 throw 가능
+  }
+}
+
+function loadConfig() {
+  try {
+    const data = localStorage.getItem(`userConfig:${VERSION}`);
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+// v1 → v2 마이그레이션
+function migrate() {
+  try {
+    const v1 = localStorage.getItem("userConfig:v1");
+    if (v1) {
+      const old = JSON.parse(v1);
+      saveConfig({
+        theme: old.darkMode ? "dark" : "light",
+        language: old.lang,
+      });
+      localStorage.removeItem("userConfig:v1");
+    }
+  } catch {}
+}
+```
+
+**서버 응답에서도 UI에 필요한 필드만:**
+
+```typescript
+// User에 필드가 20개 넘어도, 로컬에는 화면/설정에 필요한 것만
+function cachePrefs(user: FullUser) {
+  try {
+    localStorage.setItem(
+      "prefs:v1",
+      JSON.stringify({
+        theme: user.preferences.theme,
+        notifications: user.preferences.notifications,
+      })
+    );
+  } catch {}
+}
+```
+
+항상 try-catch 블록으로 감싸고, 시크릿 모드(Safari, Firefox 등), 할당량 초과, 저장소 비활성화 경우에는 `getItem`/`setItem`에서 예외를 throw 하세요.
+
+**효과:** 버전 관리를 통한 스키마 진화, 저장 용량 감소, 토큰/개인정보/내부 플래그를 저장하는 것을 방지하는데 도움이 됩니다.
