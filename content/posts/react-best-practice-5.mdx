@@ -204,3 +204,386 @@ function UserProfile({ user, theme }) {
 ---
 
 ### 5.5 Extract Default Non-primitive Parameter Value from Memoized Component to Constant (메모이제이션된 컴포넌트에서 default 비원시 매개변수 값은 상수로 저장하세요.)
+
+- 영향도: 중간 (MEDIUM / 기본값마다 새 참조가 생겨 memo가 깨지는 것 방지)
+
+`memo`로 감싼 컴포넌트에 배열, 함수, 객체 같은 **비원시(참조형)** 선택 파라미터에 **기본값**을 두게되면 그 인자를 **넘기지 않고** 쓸 때마다 렌더마다 **새 인스턴스**가 생깁니다. `memo()`는 보통 **참조 동일성**으로 props를 비교하므로, 매번 다른 `onClick` 으로 판단해 **메모이제이션이 깨집니다.**
+
+기본값은 **모듈 상수**로 한 번만 만들어 두고 재사용하세요.
+
+**잘못된 예 (`onClick`이 리렌더마다 다른 참조):**
+
+```tsx
+const UserAvatar = memo(function UserAvatar({ onClick = () => {} }: { onClick?: () => void }) {
+  // () => {} 가 렌더마다 새 함수 → memo props가 항상 바뀐 것처럼 보임
+  // ...
+})
+
+// onClick 생략
+<UserAvatar />
+```
+
+**올바른 예 (안정적인 기본값):**
+
+```tsx
+const NOOP = () => {}
+
+const UserAvatar = memo(function UserAvatar({ onClick = NOOP }: { onClick?: () => void }) {
+  // onClick 미전달 시 항상 같은 NOOP 참조
+  // ...
+})
+
+// onClick 생략
+<UserAvatar />
+```
+
+---
+
+### 5.6 Extract to Memoized Components
+
+- 영향도: 중간 (MEDIUM / 불필요한 계산, JSX 생성 전에 return)
+
+**잘못된 예 (loading이어도 avatar 계산이 먼저 돌아감):**
+
+```tsx
+function Profile({ user, loading }: Props) {
+  const avatar = useMemo(() => {
+    const id = computeAvatarId(user);
+    return <Avatar id={id} />;
+  }, [user]);
+
+  // loading이 true여도 위 useMemo는 이미 실행됨
+  if (loading) return <Skeleton />;
+  return <div>{avatar}</div>;
+}
+```
+
+**올바른 예 (loading이면 UserAvatar 자체를 렌더하지 않음):**
+
+```tsx
+const UserAvatar = memo(function UserAvatar({ user }: { user: User }) {
+  const id = useMemo(() => computeAvatarId(user), [user]);
+  return <Avatar id={id} />;
+});
+
+function Profile({ user, loading }: Props) {
+  if (loading) return <Skeleton />;
+  return (
+    <div>
+      <UserAvatar user={user} />
+    </div>
+  );
+}
+```
+
+**참고:** 프로젝트에 [React Compiler](https://react.dev/learn/react-compiler)가 켜져 있으면 `memo()`·`useMemo()`를 수동으로 쓸 필요가 없을 수 있습니다. 컴파일러가 리렌더를 자동으로 최적화합니다.
+
+---
+
+### 5.7 Narrow Effect Dependencies (Effect의 의존성 배열 범위를 좁히세요.)
+
+- 영향도: 낮음 (LOW / Effect 재실행 최소화)
+
+객체 전체 대신 **원시값**(id, boolean 등)만 의존성에 넣으면, effect가 **꼭 필요할 때만** 다시 실행됩니다.
+
+**잘못된 예 (`user`의 아무 필드가 바뀌어도 effect 재실행):**
+
+```tsx
+useEffect(() => {
+  console.log(user.id);
+}, [user]);
+```
+
+**올바른 예 (`id`가 바뀔 때만 재실행):**
+
+```tsx
+useEffect(() => {
+  console.log(user.id);
+}, [user.id]);
+```
+
+**파생 값은 effect 밖에서 만들고, 그 결과만 의존성에:**
+
+```tsx
+// 잘못됨: width가 767, 766, 765… 바뀔 때마다 effect 실행
+useEffect(() => {
+  if (width < 768) {
+    enableMobileMode();
+  }
+}, [width]);
+
+// 올바름: isMobile true/false가 바뀔 때만 (덜 자주)
+const isMobile = width < 768;
+useEffect(() => {
+  if (isMobile) {
+    enableMobileMode();
+  }
+}, [isMobile]);
+```
+
+---
+
+### 5.8 Put Interaction Logic in Event Handlers (상호작용 로직은 이벤트 핸들러에 두세요.)
+
+- 영향도: 중간 (MEDIUM / Effect의 재실행, 중복 부작용 방지)
+
+부수 효과가 **특정 사용자 동작**(제출, 클릭, 드래그) 때문에 일어난다면, **`onClick` 등 핸들러 안에서** 실행하세요. **state를 올렸다가 effect에서 처리**하는 식으로 모델링하면, **무관한 값이 바뀔 때도** effect가 다시 돌고, 같은 동작이 **중복 실행**되기 쉽습니다.
+
+**잘못된 예 (이벤트를 state + effect로 표현):**
+
+```tsx
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+  const theme = useContext(ThemeContext);
+
+  // theme만 바뀌어도 submitted가 true면 post/showToast가 또 실행될 수 있음
+  useEffect(() => {
+    if (submitted) {
+      post("/api/register");
+      showToast("Registered", theme);
+    }
+  }, [submitted, theme]);
+
+  return <button onClick={() => setSubmitted(true)}>Submit</button>;
+}
+```
+
+**올바른 예 (핸들러에서 바로 처리):**
+
+```tsx
+function Form() {
+  const theme = useContext(ThemeContext);
+
+  function handleSubmit() {
+    post("/api/register");
+    showToast("Registered", theme);
+  }
+
+  return <button onClick={handleSubmit}>Submit</button>;
+}
+```
+
+참고: [Should this code move to an event handler?](https://react.dev/learn/removing-effect-dependencies#should-this-code-move-to-an-event-handler)
+
+---
+
+### 5.9 Split Combined Hook Computations (한 hook에 묶인 계산을 분할하세요.)
+
+- 영향도: 중간 (MEDIUM / 독립된 단계의 재계산 방지)
+
+한 훅 안에 **서로 다른 deps**를 가진 작업이 여러 개 있으면 **훅을 쪼개세요.** 한 덩어리로 두면 **어느 하나의 deps만 바뀌어도** 나머지 단계까지 **전부 다시** 돕니다.
+
+**잘못된 예 (`sortOrder`만 바꿔도 필터링부터 다시 함):**
+
+```tsx
+const sortedProducts = useMemo(() => {
+  const filtered = products.filter((p) => p.category === category);
+  const sorted = filtered.toSorted((a, b) =>
+    sortOrder === "asc" ? a.price - b.price : b.price - a.price
+  );
+  return sorted;
+}, [products, category, sortOrder]);
+```
+
+**올바른 예 (필터는 `products`, `category`가 바뀔 때만):**
+
+```tsx
+const filteredProducts = useMemo(
+  () => products.filter((p) => p.category === category),
+  [products, category]
+);
+
+const sortedProducts = useMemo(
+  () =>
+    filteredProducts.toSorted((a, b) =>
+      sortOrder === "asc" ? a.price - b.price : b.price - a.price
+    ),
+  [filteredProducts, sortOrder]
+);
+```
+
+`useEffect`에서 **관계없는 부수 효과**를 한 effect에 넣은 경우에도 같은 패턴입니다.
+
+**잘못된 예 (pathname, pageTitle 중 하나만 바뀌어도 둘 다 실행):**
+
+```tsx
+useEffect(() => {
+  analytics.trackPageView(pathname);
+  document.title = `${pageTitle} | My App`;
+}, [pathname, pageTitle]);
+```
+
+**올바른 예 (각각 독립적으로 실행):**
+
+```tsx
+useEffect(() => {
+  analytics.trackPageView(pathname);
+}, [pathname]);
+
+useEffect(() => {
+  document.title = `${pageTitle} | My App`;
+}, [pageTitle]);
+```
+
+**참고:** [React Compiler](https://react.dev/learn/react-compiler)를 켜 두면 의존성 추적이 자동으로 최적화되어, 이런 경우 일부는 컴파일러가 처리해 줄 수 있습니다.
+
+---
+
+### 5.10 Subscribe to Derived State (파생(boolean) 상태에만 구독하세요.)
+
+- 영향도: 중간 (MEDIUM / 리렌더링 빈도 줄임)
+
+창 너비처럼 **연속적으로 변하는 값** 전체에 구독하면 리사이즈할 때마다 리렌더될 수 있습니다. 화면에 필요한 게 `width < 768` 같은 **참/거짓**뿐이면, **boolean**값에만 구독해 **true/false가 바뀔 때만** 리렌더되게 하세요.
+
+**잘못된 예 (픽셀이 바뀔 때마다 리렌더):**
+
+```tsx
+function Sidebar() {
+  const width = useWindowWidth(); // 리사이즈 중 계속 갱신될 수 있음
+  const isMobile = width < 768;
+  return <nav className={isMobile ? "mobile" : "desktop"} />;
+}
+```
+
+**올바른 예 (boolean이 바뀔 때만 리렌더):**
+
+```tsx
+function Sidebar() {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  return <nav className={isMobile ? "mobile" : "desktop"} />;
+}
+```
+
+---
+
+### 5.11 Use Functional setState Updates (setState는 함수형 업데이트를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 오래된 클로저, 불필요한 콜백 재생성 방지)
+
+**현재 state 값**을 보고 다음 값을 정할 때는, state 변수를 직접 참조하지 말고 **`setState(이전값 => 새값)`** 형태의 **함수형 업데이트**를 쓰세요. 오래된 클로저(stale closure)를 막고, `useCallback`의 **의존성에서 state를 빼도** 되어 콜백 참조를 **안정**시키기 쉽습니다.
+
+**잘못된 예 (state를 deps에 넣어야 해서 콜백이 자주 바뀜):**
+
+```tsx
+function TodoList() {
+  const [items, setItems] = useState(initialItems);
+
+  // items가 바뀔 때마다 콜백이 새로 만들어짐 → 자식 불필요 리렌더 유발 가능
+  const addItems = useCallback(
+    (newItems: Item[]) => {
+      setItems([...items, ...newItems]);
+    },
+    [items]
+  ); // items에 의존
+
+  // items를 deps에서 빼면 오래된 items만 계속 참조
+  const removeItem = useCallback((id: string) => {
+    setItems(items.filter((item) => item.id !== id));
+  }, []); // 위험: 항상 초기 items 기준처럼 동작할 수 있음
+
+  return <ItemsEditor items={items} onAdd={addItems} onRemove={removeItem} />;
+}
+```
+
+첫 번째 콜백은 `items`가 바뀔 때마다 다시 만들어져 자식이 **불필요하게** 리렌더될 수 있습니다. 두 번째는 **오래된 클로저 버그**로, 항상 초기 `items`만 본 것처럼 동작할 수 있습니다.
+
+**올바른 예 (콜백 안정, 최신 state):**
+
+```tsx
+function TodoList() {
+  const [items, setItems] = useState(initialItems);
+
+  // 빈 deps로도 최신 items 기준으로 갱신
+  const addItems = useCallback((newItems: Item[]) => {
+    setItems((curr) => [...curr, ...newItems]);
+  }, []);
+
+  const removeItem = useCallback((id: string) => {
+    setItems((curr) => curr.filter((item) => item.id !== id));
+  }, []);
+
+  return <ItemsEditor items={items} onAdd={addItems} onRemove={removeItem} />;
+}
+```
+
+**효과:**
+
+1. **콜백 참조 안정** — state가 바뀌어도 콜백을 다시 만들 필요가 없음
+2. **오래된 클로저 없음** — 항상 React가 넘겨 주는 **최신 이전 값**으로 계산
+3. **의존성 단순화** — 의존성 배열이 짧아지고 실수 여지 감소
+4. **흔한 클로저 버그 예방**
+
+**함수형 업데이트를 쓰면 좋을 때:**
+
+- 이전 state를 기준으로 다음 state를 정할 때
+- `useCallback`/`useMemo` 안에서 state가 필요할 때
+- state를 읽는 이벤트 핸들러
+- 비동기 작업 끝에 state를 갱신할 때
+
+**그냥 값 넣어도 될 때:**
+
+- 고정 값: `setCount(0)`
+- props/인자에서 온 값만 반영: `setName(newName)`
+- 이전 state와 무관하게 **완전히 새 값**으로 덮을 때
+
+**참고:** [React Compiler](https://react.dev/learn/react-compiler)를 켜도 일부는 자동 최적화되지만, **정확성, stale closure 방지**를 위해 함수형 업데이트는 여전히 권장됩니다.
+
+---
+
+### 5.12 Use Lazy State Initialization (State 지연 초기화를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 초기값 계산이 매 렌더마다 도는 낭비 방지)
+
+초기 state가 **무거우면** `useState(() => ...)`처럼 **함수를 넘기는 지연 초기화**를 쓰세요. 인자로 **표현식만** 넘기면, React는 초기값은 한 번만 쓰더라도 **매 렌더마다 그 표현식을 평가**합니다.
+
+**잘못된 예 (매 렌더마다 실행):**
+
+```tsx
+function FilteredList({ items }: { items: Item[] }) {
+  // 초기화 이후에도 매 렌더마다 buildSearchIndex(items) 호출됨
+  const [searchIndex, setSearchIndex] = useState(buildSearchIndex(items));
+  const [query, setQuery] = useState("");
+
+  // query만 바뀌어도 위 초기화 표현식은 다시 평가됨
+  return <SearchResults index={searchIndex} query={query} />;
+}
+
+function UserProfile() {
+  // 매 렌더마다 JSON.parse 실행
+  const [settings, setSettings] = useState(
+    JSON.parse(localStorage.getItem("settings") || "{}")
+  );
+
+  return <SettingsForm settings={settings} onChange={setSettings} />;
+}
+```
+
+**올바른 예 (첫 마운트에서만 실행):**
+
+```tsx
+function FilteredList({ items }: { items: Item[] }) {
+  // 초기 렌더에서만 buildSearchIndex(items) 실행
+  const [searchIndex, setSearchIndex] = useState(() => buildSearchIndex(items));
+  const [query, setQuery] = useState("");
+
+  return <SearchResults index={searchIndex} query={query} />;
+}
+
+function UserProfile() {
+  // 첫 마운트에서만 localStorage 읽기, parse
+  const [settings, setSettings] = useState(() => {
+    const stored = localStorage.getItem("settings");
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  return <SettingsForm settings={settings} onChange={setSettings} />;
+}
+```
+
+**지연 초기화를 쓰기 좋을 때:** localStorage/sessionStorage에서 초기값 계산, 인덱스/맵 같은 구조 만들기, DOM 읽기, 복잡한 변환 작업
+
+**함수 형태가 굳이 필요 없을 때:** `useState(0)` 같은 단순 원시값, `useState(props.value)`처럼 이미 준비된 참조, `useState({})`처럼 가벼운 리터럴.
+
+---
+
+### 5.13
