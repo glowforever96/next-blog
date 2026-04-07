@@ -1,8 +1,8 @@
 ---
 title: "Vercel의 React Best Practices 톺아보기 [5]"
-date: "2026-04-06"
+date: "2026-04-07"
 description: "React Best Practices를 읽어보며 (리렌더링 최적화)"
-metaDescription: "Vercel React Best Practices 시리즈 5편으로, 클라이언트 데이터 페칭·이벤트 최적화를 다룹니다. 전역 리스너 중복 제거(useSWRSubscription), passive 터치·휠 리스너로 스크롤 지연 완화, SWR 자동 요청 중복 제거·mutation, localStorage 버전·최소 저장과 try-catch까지 예시와 함께 정리합니다."
+metaDescription: "Vercel React Best Practices 시리즈 5편으로, 리렌더링·클라이언트 반응성 최적화를 다룹니다. 파생 state·지연 읽기, useMemo/memo·인라인 컴포넌트·함수형 setState·effect 의존성·이벤트로 옮기기·훅 분리, 미디어쿼리 구독, 지연 초기화, startTransition·useDeferredValue·useRef까지 예시와 함께 정리합니다."
 author: "프론트엔드 개발자 권순용"
 parentCategory: "Frontend"
 tags: ["React", "Next.js", "React Best Practices", "Optimization"]
@@ -239,7 +239,7 @@ const UserAvatar = memo(function UserAvatar({ onClick = NOOP }: { onClick?: () =
 
 ---
 
-### 5.6 Extract to Memoized Components
+### 5.6 Extract to Memoized Components (메모제이션된 컴포넌트로 추출하세요.)
 
 - 영향도: 중간 (MEDIUM / 불필요한 계산, JSX 생성 전에 return)
 
@@ -586,4 +586,168 @@ function UserProfile() {
 
 ---
 
-### 5.13
+### 5.13 Use Transitions for Non-Urgent Updates (급하지 않은 업데이트에는 Transition을 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / UI 반응성 유지)
+
+**자주 일어나고** 사용자가 **즉시 느껴야 할 필요는 없는** state 갱신은 `startTransition`으로 감싸 **전환(transition) 업데이트**로 표시하세요. React가 **더 긴급한 업데이트**(입력, 클릭 등)를 먼저 처리해 **UI가 덜 버벅**이게 할 수 있습니다.
+
+**잘못된 예 (스크롤마다 동기적으로 리렌더 → 메인 스레드 부담):**
+
+```tsx
+function ScrollTracker() {
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const handler = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+}
+```
+
+**올바른 예 (낮은 우선순위로 state 갱신):**
+
+```tsx
+import { startTransition } from "react";
+
+function ScrollTracker() {
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const handler = () => {
+      startTransition(() => setScrollY(window.scrollY));
+    };
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+}
+```
+
+---
+
+### 5.14 Use useDeferredValue for Expensive Derived Renders (고비용 파생 렌더링에는 useDeferredValue를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 무거운 연산 중에도 입력에 대한 반응성 유지)
+
+입력이 바뀔 때마다 **무거운 계산이나 큰 리스트 렌더**가 따라붙으면 `useDeferredValue`를 쓰세요. 실제 입력값(`query`)은 바로 반영하고, **리스트에 넘기는 값**은 `deferredQuery`처럼 **한 박자 늦은 값**을 쓰면 React가 **입력 업데이트를 먼저** 처리하고, 여유가 생기면 무거운 결과를 그립니다.
+
+**잘못된 예 (필터가 입력 속도를 따라가려다 입력이 끊김):**
+
+```tsx
+function Search({ items }: { items: Item[] }) {
+  const [query, setQuery] = useState("");
+  // query가 바뀔 때마다 즉시 전체 필터, 자식 렌더
+  const filtered = items.filter((item) => fuzzyMatch(item, query));
+
+  return (
+    <>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} />
+      <ResultsList results={filtered} />
+    </>
+  );
+}
+```
+
+**올바른 예 (입력은 즉시, 결과는 준비 되는대로 표시):**
+
+```tsx
+function Search({ items }: { items: Item[] }) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const filtered = useMemo(
+    () => items.filter((item) => fuzzyMatch(item, deferredQuery)),
+    [items, deferredQuery]
+  );
+  const isStale = query !== deferredQuery;
+
+  return (
+    <>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div style={{ opacity: isStale ? 0.7 : 1 }}>
+        <ResultsList results={filtered} />
+      </div>
+    </>
+  );
+}
+```
+
+**쓰기 좋을 때:**
+
+- 대규묘 목록 필터/검색
+- 입력에 반응하는 **차트/그래프** 등 무거운 시각화
+- 파생 결과 때문에 **렌더가 눈에 띄게 느려질 때**
+
+**주의:** 비싼 계산은 `useMemo`로 감싸고 의존성에 **deferred 값**을 넣으세요. 그렇지 않으면 매 렌더마다 그대로 실행됩니다.
+
+참고: [React useDeferredValue](https://react.dev/reference/react/useDeferredValue)
+
+---
+
+### 5.15 Use useRef for Transient Values (일시적인 값은 useRef를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 잦은 업데이트시 불필요한 재렌더링 방지)
+
+값이 자주 변경되지만 매번 업데이트될 때마다 다시 렌더링하고 싶지 않은 경우(예: 마우스 트래커, 인터벌, 임시 플래그)에는 `useState` 대신 `useRef`에 두세요. 컴포넌트 상태는 UI에 사용하고, 일시적으로 DOM에 인접한 값에는 `ref`를 사용하세요. **ref를 바꿔도 리렌더는 발생하지 않습니다.**
+
+**잘못된 예 (이동할 때마다 리렌더):**
+
+```tsx
+function Tracker() {
+  const [lastX, setLastX] = useState(0);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => setLastX(e.clientX);
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: lastX,
+        width: 8,
+        height: 8,
+        background: "black",
+      }}
+    />
+  );
+}
+```
+
+**올바른 예 (추적만 하고 React 리렌더는 없음, DOM은 직접 갱신):**
+
+```tsx
+function Tracker() {
+  const lastXRef = useRef(0);
+  const dotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      lastXRef.current = e.clientX; // 리렌더 없이 최신값만 보관
+      const node = dotRef.current;
+      if (node) {
+        // transform만 바꿔 픽셀 이동 (React state 경유 없음)
+        node.style.transform = `translateX(${e.clientX}px)`;
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  return (
+    <div
+      ref={dotRef}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: 8,
+        height: 8,
+        background: "black",
+        transform: "translateX(0px)",
+      }}
+    />
+  );
+}
+```
