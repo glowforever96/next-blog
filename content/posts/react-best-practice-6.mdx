@@ -1,0 +1,461 @@
+---
+title: "Vercel의 React Best Practices 톺아보기 [6]"
+date: "2026-04-08"
+description: "React Best Practices를 읽어보며 (렌더링 성능)"
+metaDescription: "Vercel React Best Practices 시리즈 6편으로, 렌더링 성능을 다룹니다. SVG 래퍼 애니메이션·좌표 정밀도, content-visibility 긴 목록, 정적 JSX 호이스팅, 하이드레이션 깜빡임 방지·suppressHydrationWarning, Activity, script defer/async·next/script, 명시적 조건부 렌더, React DOM 리소스 힌트(preload·preconnect 등)까지 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/rbp.webp"
+---
+
+## 6. 렌더링 성능 - 중간 (MEDIUM)
+
+렌더링 프로세스를 최적화하면 브라우저가 수행해야 하는 작업량이 줄어듭니다.
+
+### 6.1 Animate SVG Wrapper Instead of SVG Element (SVG 요소 대신 SVG 래퍼를 애니메이션 하세요.)
+
+- 영향도: 낮음 (LOW / 하드웨어 가속 지원)
+
+많은 브라우저에서 **SVG 요소 자체**에 CSS3 애니메이션 하드웨어 가속을 지원하지 않습니다. SVG를 **`<div>` 등으로 감싼 뒤** **래퍼**에 애니메이션을 적용하세요.
+
+**잘못된 예 (SVG에 직접 애니메이션 — 하드웨어 가속 없음):**
+
+```tsx
+function LoadingSpinner() {
+  return (
+    <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" />
+    </svg>
+  );
+}
+```
+
+**올바른 예 (래퍼 div에 애니메이션 — GPU 레이어에 올리기 쉬움):**
+
+```tsx
+function LoadingSpinner() {
+  return (
+    <div className="animate-spin">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" />
+      </svg>
+    </div>
+  );
+}
+```
+
+`transform`, `opacity`, `translate`, `scale`, `rotate` 같은 **CSS transform, transition** 전반에 해당합니다. 래퍼 `div`는 두면 브라우저가 **GPU 가속**을 사용해 더욱 부드러운 애니메이션을 구현할 수 있습니다.
+
+---
+
+### 6.2 CSS content-visibility for Long Lists (긴 목록에는 CSS content-visibility를 사용하세요.)
+
+- 영향도: 높음 (HIGH / 더 빠른 초기 렌더링)
+
+화면에 **안 보이는** 리스트 항목에 `content-visibility: auto`를 주면, 긴 목록의 **최초 그리기**가 빨라집니다.
+
+**CSS:**
+
+```css
+.message-item {
+  content-visibility: auto;
+  /* 스크롤 높이 추정용(placeholder). 실제 높이와 맞출수록 스크롤바 튐이 줄어듦 */
+  contain-intrinsic-size: 0 80px;
+}
+```
+
+**예시:**
+
+```tsx
+function MessageList({ messages }: { messages: Message[] }) {
+  return (
+    <div className="overflow-y-auto h-screen">
+      {messages.map((msg) => (
+        <div key={msg.id} className="message-item">
+          <Avatar user={msg.author} />
+          <div>{msg.content}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+1000개의 메시지 중 약 990개의 화면 밖 항목에 대해서는 브라우저가 레이아웃/페인팅 작업을 건너뜁니다. (초기 렌더링 속도가 10배 빨라짐)
+
+---
+
+### 6.3 Hoist Static JSX Elements (정적 JSX는 최상단으로 끌어올리세요.)
+
+영향도: 낮음 (LOW / 컴포넌트 재생성 피하기)
+
+정적 JSX를 컴포넌트 외부로 추출해 재생성을 방지합니다.
+
+**잘못된 예 (렌더마다 새 element 생성):**
+
+```tsx
+function LoadingSkeleton() {
+  return <div className="animate-pulse h-20 bg-gray-200" />;
+}
+
+function Container() {
+  return (
+    <div>
+      {/* 매 렌더마다 <LoadingSkeleton />용 element 객체가 새로 만들어짐 */}
+      {loading && <LoadingSkeleton />}
+    </div>
+  );
+}
+```
+
+**올바른 예 (같은 element 재사용):**
+
+```tsx
+const loadingSkeleton = <div className="animate-pulse h-20 bg-gray-200" />;
+
+function Container() {
+  return <div>{loading && loadingSkeleton}</div>;
+}
+```
+
+**큰 정적 SVG**처럼 노드가 무거울 때, 매 렌더마다 다시 만들 비용을 줄이는 데 도움이 됩니다.
+
+**참고:** [React Compiler](https://react.dev/learn/react-compiler)를 켜 두면 정적 JSX를 컴파일러가 자동으로 끌어올리는 등 최적화할 수 있어, 수동 hoist가 **필수는 아닐** 수 있습니다.
+
+---
+
+### 6.4 Optimize SVG Precision (SVG 좌표 정밀도를 최적화하세요.)
+
+- 영향도: 낮음 (LOW / 파일 크기 감소)
+
+`d` 속성 같은 곳의 **좌표 소수 자릿수**를 줄이면 SVG **파일 크기**가 줄어듭니다. 적당한 자릿수는 **viewBox 크기**에 따라 다르지만, **과한 정밀도는 줄이는 것**을 검토하세요.
+
+**잘못된 예 (정밀도 과다):**
+
+```svg
+<path d="M 10.293847 20.847362 L 30.938472 40.192837" />
+```
+
+**올바른 예 (소수 첫째 자리 등으로 반올림):**
+
+```svg
+<path d="M 10.3 20.8 L 30.9 40.2" />
+```
+
+**SVGO로 자동화:**
+
+```bash
+npx svgo --precision=1 --multipass icon.svg
+```
+
+---
+
+### 6.5 Prevent Hydration Mismatch Without Flickering (깜빡임 없이 하이드레이션 불균형을 방지하세요.)
+
+- 영향도: 중간 (MEDIUM / 시각적 깜빡임, 하이드레이션 오류 방지)
+
+클라이언트 측 저장소(localStorage, cookies)에 의존하는 콘텐츠를 렌더링할 때, React가 하이드레이트되기 전에 DOM을 업데이트하는 동기 스크립트를 주입하여 SSR 오류와 하이드레이션 이후 깜빡임을 모두 피하세요.
+
+**잘못된 예 (SSR 깨짐):**
+
+```tsx
+function ThemeWrapper({ children }: { children: ReactNode }) {
+  // 서버에는 localStorage 없음 → 오류
+  const theme = localStorage.getItem("theme") || "light";
+
+  return <div className={theme}>{children}</div>;
+}
+```
+
+서버 렌더 단계에서 `localStorage`가 없어 **실행이 실패**할 수 있습니다.
+
+**잘못된 예 (화면 깜빡임):**
+
+```tsx
+function ThemeWrapper({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState("light");
+
+  useEffect(() => {
+    // 하이드레이션 이후에만 실행 → 먼저 light로 그려졌다가 바뀜
+    const stored = localStorage.getItem("theme");
+    if (stored) {
+      setTheme(stored);
+    }
+  }, []);
+
+  return <div className={theme}>{children}</div>;
+}
+```
+
+처음은 기본값(`light`)으로 그려진 뒤, 하이드레이션 후에야 저장된 테마로 바뀌어 **잘못된 스타일이 잠깐 보일 수** 있습니다.
+
+**올바른 예 (깜빡임, 하이드레이션 불일치 없음):**
+
+```tsx
+function ThemeWrapper({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <div id="theme-wrapper">{children}</div>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function() {
+              try {
+                var theme = localStorage.getItem('theme') || 'light';
+                var el = document.getElementById('theme-wrapper');
+                if (el) el.className = theme;
+              } catch (e) {}
+            })();
+          `,
+        }}
+      />
+    </>
+  );
+}
+```
+
+인라인 스크립트는 파서가 만나는 순간 **동기 실행**되어, 화면에 보이기 전에 DOM에 반영될 수 있습니다. **깜빡임과 hydration 불일치**가 발생하지 않습니다.
+
+테마 토글, 사용자 설정, 인증 표시처럼 **클라이언트에만 있는 데이터**를 **기본값이 잠깐 보이지 않게** 쓰기에 특히 유용합니다.
+
+---
+
+### 6.6 Suppress Expected Hydration Mismatches (예샹되는 하이드레이션 불일치는 억제하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 예상할 수 있는 하이드레이션 경고 피하기)
+
+SSR 프레임워크(예: Next.js)에서는 서버와 클라이언트가 **의도적으로 다르게** 나오는 값이 있습니다(랜덤 ID, 날짜, 로케일, 타임존 포맷 등). 이렇게 **예상된** 불일치라면, 해당 동적 텍스트를 `suppressHydrationWarning`이 붙은 요소로 감싸 **불필요한 hydration 경고**를 줄일 수 있습니다. **실제 버그를 가리기 위해 쓰거나 과도하게 사용하지 마세요.**
+
+**잘못된 예 (알려진 불일치 경고):**
+
+```tsx
+function Timestamp() {
+  // 서버 시간, 로케일 vs 클라이언트 시간, 로케일이 달라질 수 있음
+  return <span>{new Date().toLocaleString()}</span>;
+}
+```
+
+**올바른 예 (예상되는 불일치에만 suppress):**
+
+```tsx
+function Timestamp() {
+  return <span suppressHydrationWarning>{new Date().toLocaleString()}</span>;
+}
+```
+
+---
+
+### 6.7 Use Activity Component for Show/Hide (Show/Hide에는 Activity 컴포넌트를 사용하세요.)
+
+- 영향도: 중간 (MEDIUM / 상태, DOM 보존)
+
+가시성을 자주 바꾸는 **고비용 컴포넌트**는 React의 `<Activity>`로 감싸 **state와 DOM**을 유지하세요.
+
+**사용 예:**
+
+```tsx
+import { Activity } from 'react'
+
+function Dropdown({ isOpen }: Props) {
+  return (
+    {/* 닫혀 있어도 자식을 통째로 없애지 않고 숨겨 state와 DOM 유지 */}
+    <Activity mode={isOpen ? 'visible' : 'hidden'}>
+      <ExpensiveMenu />
+    </Activity>
+  )
+}
+```
+
+무거운 리렌더와 **state 손실**을 줄이는 데 도움이 됩니다.
+
+참고: [React Activity]('https://ko.react.dev/reference/react/Activity')
+
+---
+
+### 6.8 Use defer or async on Script Tags (스크립트 태그에 defer 또는 async를 사용하세요.)
+
+- 영향도: 높음 (HIGH / 렌더링 차단 제거)
+
+`defer`도 `async`도 없는 스크립트는 **다운로드와 실행이 끝날 때까지** HTML 파싱을 **막습니다.** First Contentful Paint, Time to Interactive가 늦어질 수 있습니다.
+
+- **`defer`**: 병렬로 받되, **HTML 파싱이 끝난 뒤** 실행, **실행 순서** 유지
+- **`async`**: 병렬로 받되, **준비 즉시** 실행, **실행 순서 보장 없음**
+
+DOM이나 다른 스크립트에 **의존**하면 `defer`, 분석처럼 **독립** 스크립트는 `async`를 검토하세요.
+
+**잘못된 예 (렌더 블로킹):**
+
+```tsx
+export default function Document() {
+  return (
+    <html>
+      <head>
+        <script src="https://example.com/analytics.js" />
+        <script src="/scripts/utils.js" />
+      </head>
+      <body>{/* 내용 */}</body>
+    </html>
+  );
+}
+```
+
+**올바른 예 (논블로킹):**
+
+```tsx
+export default function Document() {
+  return (
+    <html>
+      <head>
+        {/* 독립 스크립트 — async */}
+        <script src="https://example.com/analytics.js" async />
+        {/* DOM 의존 — defer */}
+        <script src="/scripts/utils.js" defer />
+      </head>
+      <body>{/* 내용 */}</body>
+    </html>
+  );
+}
+```
+
+**참고:** Next.js에서는 raw `<script>`보다 `next/script`의 `strategy`를 쓰는 편이 좋습니다.
+
+```tsx
+import Script from "next/script";
+
+export default function Page() {
+  return (
+    <>
+      <Script
+        src="https://example.com/analytics.js"
+        strategy="afterInteractive"
+      />
+      <Script src="/scripts/utils.js" strategy="beforeInteractive" />
+    </>
+  );
+}
+```
+
+참고: [MDN - Script element](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script#defer)
+
+---
+
+### 6.9 Use Explicit Conditional Rendering
+
+- 영향도: 낮음 (LOW / 0 또는 NaN 렌더링 방지)
+
+조건이 **`0`**, **`NaN`**, 그 밖에 **렌더링되는 기타 falsy 값**이 될 수 있으면, `condition && <Node />` 대신 **`? :`로 명시**하세요.
+
+**잘못된 예 (`count`가 0이면 화면에 `"0"` 출력):**
+
+```tsx
+function Badge({ count }: { count: number }) {
+  return (
+    <div>
+      {/* 0 && … → 0은 falsy지만 React는 0을 자식으로 렌더 */}
+      {count && <span className="badge">{count}</span>}
+    </div>
+  );
+}
+
+// count = 0 → <div>0</div>
+// count = 5 → <div><span class="badge">5</span></div>
+```
+
+**올바른 예 (`count`가 0이면 아무것도 안 그림):**
+
+```tsx
+function Badge({ count }: { count: number }) {
+  return <div>{count > 0 ? <span className="badge">{count}</span> : null}</div>;
+}
+
+// count = 0 → <div></div>
+// count = 5 → <div><span class="badge">5</span></div>
+```
+
+---
+
+### 6.10 Use React DOM Resource Hints (React DOM 리소스 힌트를 사용하세요.)
+
+- 영향도: 높음 (HIGH / 중요 리소스 로드 시간 단축)
+
+React DOM은 브라우저에 **앞으로 쓸 리소스**를 알려 주는 API를 제공합니다. 특히 서버 컴포넌트에서 쓰면 **클라이언트가 HTML을 받기 전에** 로딩을 시작하기 좋습니다.
+
+- `prefetchDNS(href)`: 나중에 붙을 도메인의 **DNS**만 미리 조회
+- `preconnect(href)`: **DNS + TCP + TLS**까지 연결 준비
+- `preload(href, options)`: 곧 쓸 **스타일시트, 폰트, 스크립트, 이미지** 등을 fetch
+- `preloadModule(href)`: 곧 쓸 **ES 모듈** fetch
+- `preinit(href, options)`: 스타일시트 또는 스크립트를 **가져와 실행**
+- `preinitModule(href)`: ES 모듈을 **가져와 실행**
+
+**예시 (서드파티 API에 preconnect):**
+
+```tsx
+import { preconnect, prefetchDNS } from "react-dom";
+
+export default function App() {
+  prefetchDNS("https://analytics.example.com");
+  preconnect("https://api.example.com");
+
+  return <main>{/* 내용 */}</main>;
+}
+```
+
+**예시 (필수 폰트 및 스타일 preload / preinit):**
+
+```tsx
+import { preload, preinit } from "react-dom";
+
+export default function RootLayout({ children }) {
+  // 폰트 파일 미리 받기
+  preload("/fonts/inter.woff2", {
+    as: "font",
+    type: "font/woff2",
+    crossOrigin: "anonymous",
+  });
+
+  // 중요 CSS는 받아서 바로 적용
+  preinit("/styles/critical.css", { as: "style" });
+
+  return (
+    <html>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**예시 (코드 스플릿 라우트용 모듈 preload):**
+
+_페이지마다 JS가 잘려 나간(코드 스플릿) 경우, 해당 라우트 전용 청크(`/dashboard.js` 등)를 **이동 전에** 미리 받아 두는 예입니다._
+
+```tsx
+import { preloadModule, preinitModule } from "react-dom";
+
+function Navigation() {
+  const preloadDashboard = () => {
+    preloadModule("/dashboard.js", { as: "script" });
+  };
+
+  return (
+    <nav>
+      <a href="/dashboard" onMouseEnter={preloadDashboard}>
+        Dashboard
+      </a>
+    </nav>
+  );
+}
+```
+
+**API별로 언제 쓰나:**
+
+| API             | 용도                                  |
+| --------------- | ------------------------------------- |
+| `prefetchDNS`   | 나중에 접속할 **서드파티 도메인**     |
+| `preconnect`    | 곧 요청할 **API 또는 CDN**            |
+| `preload`       | **현재 페이지**에 꼭 필요한 리소스    |
+| `preloadModule` | **다음에 탐색할 가능성이 큰** JS 모듈 |
+| `preinit`       | **먼저 실행**해야 하는 CSS/스크립트   |
+| `preinitModule` | **조기에 실행**해야 하는 ES 모듈      |
+
+참고: [React DOM Resource Preloading APIs](https://react.dev/reference/react-dom#resource-preloading-apis)
