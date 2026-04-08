@@ -1,0 +1,802 @@
+---
+title: "Vercel의 React Best Practices 톺아보기 [7]"
+date: "2026-04-09"
+description: "React Best Practices를 읽어보며 (자바스크립트 성능)"
+metaDescription: "Vercel React Best Practices 시리즈 7편으로, 자바스크립트 성능·핫 패스 미세 최적화를 다룹니다. 레이아웃 스래싱, Map·Set 조회, 루프·함수·Storage 캐시, 배열 순회 통합·flatMap, requestIdleCallback, 배열 비교 길이 선검사·조기 return, RegExp 호이스팅, min/max 루프, toSorted 불변 정렬까지 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/rbp.webp"
+---
+
+## 7. 자바스크립트 성능 - 중하 (LOW-MEDIUM)
+
+자주 실행되는 경로에 대한 미세 최적화는 누적되면 상당한 개선 효과를 가져올 수 있습니다.
+
+### 7.1 Avoid Layout Thrashing
+
+- 영향도: 중간 (MEDIUM / 강제 동기 레이아웃 방지, 성능 병목 줄임)
+
+스타일을 **바꾼 직후** 레이아웃을 **읽는** 코드를 끼워 넣지 마세요. `offsetWidth`, `getBoundingClientRect()`, `getComputedStyle()` 같은 **레이아웃이 필요한 읽기**가 스타일 변경 **사이**에 끼면 브라우저가 **동기적으로 reflow**를 해야 해서 비용이 큽니다.
+
+**괜찮은 예 (브라우저가 스타일 변경을 묶어 처리):**
+
+```typescript
+function updateElementStyles(element: HTMLElement) {
+  // 줄마다 스타일 무효화는 되지만, 보통 한 번에 재계산하려고 묶음
+  element.style.width = "100px";
+  element.style.height = "200px";
+  element.style.backgroundColor = "blue";
+  element.style.border = "1px solid black";
+}
+```
+
+**잘못된 예 (읽기·쓰기가 섞여 reflow가 연속):**
+
+```typescript
+function layoutThrashing(element: HTMLElement) {
+  element.style.width = "100px";
+  const width = element.offsetWidth; // 여기서 레이아웃 강제
+  element.style.height = "200px";
+  const height = element.offsetHeight; // 또 레이아웃 강제
+}
+```
+
+**올바른 예 (쓰기를 한꺼번에, 읽기는 그다음):**
+
+```typescript
+function updateElementStyles(element: HTMLElement) {
+  // 쓰기만 먼저 모음
+  element.style.width = "100px";
+  element.style.height = "200px";
+  element.style.backgroundColor = "blue";
+  element.style.border = "1px solid black";
+
+  // 다 쓴 뒤 한 번만 읽기 (reflow 횟수 감소)
+  const { width, height } = element.getBoundingClientRect();
+}
+```
+
+**올바른 예 (읽기만 먼저, 쓰기는 그다음):**
+
+```typescript
+function avoidThrashing(element: HTMLElement) {
+  // 읽기 단계 — 레이아웃을 먼저
+  const rect1 = element.getBoundingClientRect();
+  const offsetWidth = element.offsetWidth;
+  const offsetHeight = element.offsetHeight;
+
+  // 쓰기 단계 — 스타일 변경은 그 다음
+  element.style.width = "100px";
+  element.style.height = "200px";
+}
+```
+
+**더 나음: CSS 클래스 사용**
+
+```css
+.highlighted-box {
+  width: 100px;
+  height: 200px;
+  background-color: blue;
+  border: 1px solid black;
+}
+```
+
+```typescript
+function updateElementStyles(element: HTMLElement) {
+  element.classList.add("highlighted-box");
+
+  const { width, height } = element.getBoundingClientRect();
+}
+```
+
+**React 예시:**
+
+```tsx
+// 잘못됨: 스타일 변경과 레이아웃 읽기가 섞임
+function Box({ isHighlighted }: { isHighlighted: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current && isHighlighted) {
+      ref.current.style.width = "100px";
+      const width = ref.current.offsetWidth; // 레이아웃 강제
+      ref.current.style.height = "200px";
+    }
+  }, [isHighlighted]);
+
+  return <div ref={ref}>Content</div>;
+}
+
+// 올바름: 클래스로 토글
+function Box({ isHighlighted }: { isHighlighted: boolean }) {
+  return <div className={isHighlighted ? "highlighted-box" : ""}>Content</div>;
+}
+```
+
+가능하면 인라인 스타일보다 **CSS 클래스**를 쓰세요. CSS 파일은 브라우저가 **캐시**하기 쉽고, 관심사 분리, 유지보수에도 유리합니다.
+
+레이아웃을 강제하는 연산에 대해서는 [이 gist](https://gist.github.com/paulirish/5d52fb081b3570c81e3a)와 [CSS Triggers](https://csstriggers.com/)를 참고하세요.
+
+---
+
+### 7.2 Build Index Maps for Repeated Lookups (반복 조회를 위한 인덱스 Map을 구축하세요.)
+
+- 영향도: 낮음 (LOW / 대량 조회 시 연산 수 대폭 감소)
+
+**같은 배열**에서 **같은 기준**(예: `id`)으로 **여러 번** 찾을 거면 **`Map`으로 한 번만** 인덱싱하세요.
+
+**잘못된 예 (조회마다 O(n)):**
+
+```typescript
+function processOrders(orders: Order[], users: User[]) {
+  // order마다 users 전체를 선형 탐색
+  return orders.map((order) => ({
+    ...order,
+    user: users.find((u) => u.id === order.userId),
+  }));
+}
+```
+
+**올바른 예 (조회마다 O(1)):**
+
+```typescript
+function processOrders(orders: Order[], users: User[]) {
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  return orders.map((order) => ({
+    ...order,
+    user: userById.get(order.userId),
+  }));
+}
+```
+
+Map은 **한 번** 만드는 데 O(n), 이후 `get`은 O(1)에 가깝습니다.  
+예: 주문 1000개 × 사용자 1000명이면, 잘못된 방식은 대략 **100만 번** 비교에 가깝고, Map을 쓰면 **약 2000** 수준(인덱스 구축 + 조회)으로 줄어듭니다.
+
+---
+
+### 7.3 Cache Property Access in Loops (반복문 내에서는 프로퍼티 접근을 캐시하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 반복 조회 횟수 줄임)
+
+**핫패스**에서 같은 객체의 **깊은 프로퍼티**를 반복할 때마다 읽지 말고, **루프 밖에서 한 번** 로컬 변수에 담아 쓰세요.
+
+**잘못된 예 (반복 N번마다 깊은 경로, length 조회):**
+
+```typescript
+for (let i = 0; i < arr.length; i++) {
+  // 매번 obj.config.settings까지 내려가고 process 인자도 매번 평가
+  process(obj.config.settings.value);
+}
+```
+
+**올바른 예 (값, length는 루프 전에 한 번):**
+
+```typescript
+const value = obj.config.settings.value;
+const len = arr.length;
+for (let i = 0; i < len; i++) {
+  process(value);
+}
+```
+
+### 7.4 Cache Repeated Function Calls (반복되는 함수 호출을 캐시하세요.)
+
+영향도: 중간 (MEDIUM / 중복 계산 피하기)
+
+렌더나 반복 안에서 **같은 인자**로 **같은 순수(또는 비싼) 함수**를 여러 번 호출한다면, 모듈 수준 `Map`으로 결과를 캐시하세요.
+
+**잘못된 예 (중복 계산):**
+
+```typescript
+function ProjectList({ projects }: { projects: Project[] }) {
+  return (
+    <div>
+      {projects.map((project) => {
+        // 프로젝트 이름이 겹치면 slugify가 같은 문자열에 대해 반복 호출됨
+        const slug = slugify(project.name);
+
+        return <ProjectCard key={project.id} slug={slug} />;
+      })}
+    </div>
+  );
+}
+```
+
+**올바른 예 (결과 캐시):**
+
+```typescript
+// 모듈 단위 캐시 (요청/렌더 간 유지)
+const slugifyCache = new Map<string, string>();
+
+function cachedSlugify(text: string): string {
+  if (slugifyCache.has(text)) {
+    return slugifyCache.get(text)!;
+  }
+  const result = slugify(text);
+  slugifyCache.set(text, result);
+  return result;
+}
+
+function ProjectList({ projects }: { projects: Project[] }) {
+  return (
+    <div>
+      {projects.map((project) => {
+        // 같은 name 문자열은 한 번만 slugify
+        const slug = cachedSlugify(project.name);
+
+        return <ProjectCard key={project.id} slug={slug} />;
+      })}
+    </div>
+  );
+}
+```
+
+**단일 값만 캐시할 때 더 단순한 패턴:**
+
+```typescript
+let isLoggedInCache: boolean | null = null;
+
+function isLoggedIn(): boolean {
+  if (isLoggedInCache !== null) {
+    return isLoggedInCache;
+  }
+
+  isLoggedInCache = document.cookie.includes("auth=");
+  return isLoggedInCache;
+}
+
+// 인증이 바뀌면 캐시 무효화
+function onAuthChange() {
+  isLoggedInCache = null;
+}
+```
+
+hook이 아니라 `Map`을 쓰면 React 컴포넌트 밖에서도 통합니다: 유틸, 이벤트 핸들러 등.
+
+참고: [How we made the Vercel Dashboard twice as fast](https://vercel.com/blog/how-we-made-the-vercel-dashboard-twice-as-fast)
+
+---
+
+### 7.5 Cache Storage API Calls (Storage API 호출을 캐시하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 비용이 많이 드는 I/O 작업 감소)
+
+`localStorage`, `sessionStorage`, `document.cookie` 접근은 **동기**이고 **비용이 큰 편**입니다. **메모리**에 읽기 결과를 잠깐 캐시하세요.
+
+**잘못된 예 (호출할 때마다 저장소 읽기):**
+
+```typescript
+function getTheme() {
+  return localStorage.getItem("theme") ?? "light";
+}
+// getTheme을 10번 부르면 저장소 읽기도 10번
+```
+
+**올바른 예 (Map 캐시):**
+
+```typescript
+const storageCache = new Map<string, string | null>();
+
+function getLocalStorage(key: string) {
+  if (!storageCache.has(key)) {
+    storageCache.set(key, localStorage.getItem(key));
+  }
+  return storageCache.get(key);
+}
+
+function setLocalStorage(key: string, value: string) {
+  localStorage.setItem(key, value);
+  storageCache.set(key, value); // 실제 쓰기와 캐시 동기화
+}
+```
+
+hook이 아니라 `Map`을 쓰면 유틸, 이벤트 핸들러 등 **컴포넌트 밖**에서도 쓸 수 있습니다.
+
+**쿠키 캐시:**
+
+```typescript
+let cookieCache: Record<string, string> | null = null;
+
+function getCookie(name: string) {
+  if (!cookieCache) {
+    cookieCache = Object.fromEntries(
+      document.cookie.split("; ").map((c) => c.split("="))
+    );
+  }
+  return cookieCache[name];
+}
+```
+
+**중요 (외부 변경 시 캐시 무효화):**
+
+다른 탭, 서버에서 저장소/쿠키가 바뀔 수 있으면 캐시를 비우세요.
+
+```typescript
+window.addEventListener("storage", (e) => {
+  if (e.key) storageCache.delete(e.key);
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    storageCache.clear();
+  }
+});
+```
+
+---
+
+### 7.6 Combine Multiple Array Iterations (다수의 배열 순회를 통합하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 반복 횟수 감소)
+
+`.filter()`나 `.map()`을 **여러 번** 연결하면 배열을 **그만큼 여러 번** 순회합니다. **한 번의 `for` 루프**로 합치세요.
+
+**잘못된 예 (배열을 3번 순회):**
+
+```typescript
+const admins = users.filter((u) => u.isAdmin);
+const testers = users.filter((u) => u.isTester);
+const inactive = users.filter((u) => !u.isActive);
+```
+
+**올바른 예 (배열을 1번만 순회):**
+
+```typescript
+const admins: User[] = [];
+const testers: User[] = [];
+const inactive: User[] = [];
+
+for (const user of users) {
+  if (user.isAdmin) admins.push(user);
+  if (user.isTester) testers.push(user);
+  if (!user.isActive) inactive.push(user);
+}
+```
+
+---
+
+### 7.7 Defer Non-Critical Work with requestIdleCallback (requestIdleCallback을 사용하여 중요하지 않은 작업을 연기하세요.)
+
+- 영향도: 중간 (MEDIUM / 백그라운드 작업 중에도 UI 응답성을 유지)
+
+`requestIdleCallback()`으로 **당장 필요 없는 작업**을 브라우저가 **한가할 때** 실행하게 스케줄하세요. 메인 스레드가 사용자 입력, 애니메이션에 쓰일 여유가 생겨 끊김(jank)을 줄이고 체감 성능이 나아질 수 있습니다.
+
+**잘못된 예 (검색 직후 메인 스레드에서 바로 무거운 부가 작업):**
+
+```typescript
+function handleSearch(query: string) {
+  const results = searchItems(query);
+  setResults(results);
+
+  // 아래가 같은 턴에서 이어져 입력 반응을 막을 수 있음
+  analytics.track("search", { query });
+  saveToRecentSearches(query);
+  prefetchTopResults(results.slice(0, 3));
+}
+```
+
+**올바른 예 (부가 작업은 idle로):**
+
+```typescript
+function handleSearch(query: string) {
+  const results = searchItems(query);
+  setResults(results);
+
+  requestIdleCallback(() => {
+    analytics.track("search", { query });
+  });
+
+  requestIdleCallback(() => {
+    saveToRecentSearches(query);
+  });
+
+  requestIdleCallback(() => {
+    prefetchTopResults(results.slice(0, 3));
+  });
+}
+```
+
+**timeout으로 “너무 늦지 않게” 보장:**
+
+```typescript
+// 브라우저가 계속 바빠도 최대 2초 안에는 실행되도록
+requestIdleCallback(
+  () => analytics.track("page_view", { path: location.pathname }),
+  { timeout: 2000 }
+);
+```
+
+**큰 작업을 쪼개기:**
+
+```typescript
+function processLargeDataset(items: Item[]) {
+  let index = 0;
+
+  function processChunk(deadline: IdleDeadline) {
+    // 남은 idle 시간이 있을 때만 조금씩 (대략 50ms 이하 청크 목표)
+    while (index < items.length && deadline.timeRemaining() > 0) {
+      processItem(items[index]);
+      index++;
+    }
+
+    if (index < items.length) {
+      requestIdleCallback(processChunk);
+    }
+  }
+
+  requestIdleCallback(processChunk);
+}
+```
+
+**미지원 브라우저 폴백:**
+
+```typescript
+const scheduleIdleWork =
+  window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1));
+
+scheduleIdleWork(() => {
+  // 급하지 않은 작업
+});
+```
+
+**쓰기 좋을 때:**
+
+- 분석, 원격 측정
+- localStorage / IndexedDB에 상태 저장
+- 다음 행동에 쓸 리소스 프리페치
+- 긴급하지 않은 데이터 가공
+- 중요하지 않은 기능의 지연 초기화
+
+**쓰지 말아야 할 때:**
+
+- 사용자가 **즉시** 피드백을 기대하는 동작
+- 사용자가 **기다리는** 렌더 갱신
+- **시간에 민감한** 연산
+
+참고: [window.requestIdleCallback() MDN](https://developer.mozilla.org/ko/docs/Web/API/Window/requestIdleCallback)
+
+---
+
+### 7.8 Early Length Check for Array Comparisons (배열 비교는 길이부터 체크하세요.)
+
+- 영향도: 중상 (MEDIUM-HIGH / 배열 길이가 다를 경우 고비용 작업 방지)
+
+배열을 **정렬**, **깊은 동등**, **직렬화** 등으로 비교할 때는 **먼저 `length`를 비교**하세요. 길이가 다르면 **두 배열은 같을 수 없습니다.**
+
+실무에서는 이러한 최적화는 비교 작업이 빈번하게 실행되는 경로 (이벤트 핸들러, 렌더링 루프)에서 특히 유용합니다.
+
+**잘못된 예 (항상 비싼 비교 실행):**
+
+```typescript
+function hasChanges(current: string[], original: string[]) {
+  // 길이가 달라도 매번 sort + join
+  return current.sort().join() !== original.sort().join();
+}
+```
+
+`current.length`가 5이고 `original.length`가 100이어도 **정렬 O(n log n)이 두 번** 돕니다. `join`으로 만든 **긴 문자열** 비교 비용도 듭니다. 게다가 `sort()`는 **원본 배열을 변형**합니다.
+
+**올바른 예 (길이 먼저 — 다르면 O(1)로 종료):**
+
+```typescript
+function hasChanges(current: string[], original: string[]) {
+  if (current.length !== original.length) {
+    return true;
+  }
+  const currentSorted = current.toSorted();
+  const originalSorted = original.toSorted();
+  for (let i = 0; i < currentSorted.length; i++) {
+    if (currentSorted[i] !== originalSorted[i]) {
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+이렇게 하면:
+
+- 길이가 다를 때 **정렬, join을 아예 하지 않음: 필요한 오버헤드 방지**
+- 큰 배열에서 **join 문자열 메모리**를 쓰지 않음
+- `toSorted()`로 원본 배열을 **변형하지 않음**
+- 차이가 발견되면 **즉시 return**
+
+---
+
+### 7.9 Early Return from Functions (함수를 조기 종료하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 불필요한 계산 방지)
+
+**결론이 이미 나온 경우**에는 불필요한 처리를 건너뛰기 위해 **`return`으로 바로 빠져나오세요.**
+
+**잘못된 예 (오류를 찾은 뒤에도 모든 항목을 계속 검사):**
+
+```typescript
+function validateUsers(users: User[]) {
+  let hasError = false;
+  let errorMessage = "";
+
+  for (const user of users) {
+    if (!user.email) {
+      hasError = true;
+      errorMessage = "Email required";
+    }
+    if (!user.name) {
+      hasError = true;
+      errorMessage = "Name required";
+    }
+    // 이미 오류인데도 나머지 user까지 전부 순회
+  }
+
+  return hasError ? { valid: false, error: errorMessage } : { valid: true };
+}
+```
+
+**올바른 예 (첫 오류에서 즉시 반환):**
+
+```typescript
+function validateUsers(users: User[]) {
+  for (const user of users) {
+    if (!user.email) {
+      return { valid: false, error: "Email required" };
+    }
+    if (!user.name) {
+      return { valid: false, error: "Name required" };
+    }
+  }
+
+  return { valid: true };
+}
+```
+
+---
+
+### 7.10 Hoist RegExp Creation (RegExp는 끌어올리세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 매번 정규식 객체 새로 만들지 않음)
+
+**렌더 함수 안에서** 매번 `new RegExp(...)`를 만들지 마세요. **패턴이 고정**이면 **모듈 최상단 상수**로 두고, **`query`처럼 바뀌는 값**이 끼면 `useMemo`로 `query`가 바뀔 때만 다시 만들세요.
+
+**잘못된 예 (렌더마다 새 RegExp):**
+
+```tsx
+function Highlighter({ text, query }: Props) {
+  const regex = new RegExp(`(${query})`, 'gi')
+  const parts = text.split(regex)
+  return <>{parts.map((part, i) => ...)}</>
+}
+```
+
+**올바른 예 (고정 패턴은 상수, 동적 패턴은 useMemo):**
+
+```tsx
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function Highlighter({ text, query }: Props) {
+  // query가 바뀔 때만 재생성
+  const regex = useMemo(
+    () => new RegExp(`(${escapeRegex(query)})`, 'gi'),
+    [query]
+  )
+  const parts = text.split(regex)
+  return <>{parts.map((part, i) => ...)}</>
+}
+```
+
+**주의 (전역 플래그 `g`는 내부 상태가 있음):**
+
+`/g` 정규식은 `lastIndex`가 바뀌어 **같은 패턴으로 연속 `test`/`exec` 시** 결과가 달라질 수 있습니다.
+
+```typescript
+const regex = /foo/g;
+regex.test("foo"); // true, lastIndex = 3
+regex.test("foo"); // false, lastIndex = 0
+```
+
+### 7.11 Use flatMap to Map and Filter in One Pass
+
+- 영향도: 중하 (LOW-MEDIUM / 중간 배열 없이 한번에 순회)
+
+`.map().filter(Boolean)`처럼 이어 쓰면 **중간 배열**이 생기고 **배열을 두 번** 훑습니다. `.flatMap()`으로 **한 번의 순회**에 처리할 수 있습니다.
+
+**잘못된 예 (순회 2번, 중간 배열):**
+
+```typescript
+const userNames = users
+  .map((user) => (user.isActive ? user.name : null))
+  .filter(Boolean);
+```
+
+**올바른 예 (순회 1번, 중간 배열 없음):**
+
+```typescript
+const userNames = users.flatMap((user) => (user.isActive ? [user.name] : []));
+```
+
+**추가 예시:**
+
+```typescript
+// 응답에서 유효한 이메일만
+// 이전
+const emails = responses
+  .map((r) => (r.success ? r.data.email : null))
+  .filter(Boolean);
+
+// 이후
+const emails = responses.flatMap((r) => (r.success ? [r.data.email] : []));
+
+// 파싱 후 NaN 제거
+// 이전
+const numbers = strings.map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
+
+// 이후
+const numbers = strings.flatMap((s) => {
+  const n = parseInt(s, 10);
+  return isNaN(n) ? [] : [n];
+});
+```
+
+**쓰기 좋을 때:**
+
+- 일부를 필터링하면서 항목을 변환할 때
+- 일부 입력값이 출력을 생성하지 않는 조건부 매핑
+- 유효하지 않은 입력을 건너뛰어야 하는 구문 분석/유효성 검사
+
+---
+
+### 7.12 Use Loop for Min/Max Instead of Sort (정렬 대신 반복문을 사용하여 최소값/최대값을 구하세요.)
+
+- 영향도: 낮음 (LOW / O(n) — 정렬 O(n log n)보다 가벼움)
+
+최솟값/최댓값을 찾는 데는 배열을 한 번만 순회하면 됩니다. **정렬은 비효율적이고 속도가 느립니다.**
+
+**잘못된 예 (O(n log n) — 최신 하나만 찾는데 정렬):**
+
+```typescript
+interface Project {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
+function getLatestProject(projects: Project[]) {
+  const sorted = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
+  return sorted[0];
+}
+```
+
+최댓값 하나만 필요한데 **전체를 정렬**합니다.
+
+**잘못된 예 (O(n log n) — 가장 오래된 것과 최신 둘 다 필요):**
+
+```typescript
+function getOldestAndNewest(projects: Project[]) {
+  const sorted = [...projects].sort((a, b) => a.updatedAt - b.updatedAt);
+  return { oldest: sorted[0], newest: sorted[sorted.length - 1] };
+}
+```
+
+min/max만 있으면 되는데도 **불필요하게 정렬**합니다.
+
+**올바른 예 (O(n) — 단일 루프):**
+
+```typescript
+function getLatestProject(projects: Project[]) {
+  if (projects.length === 0) return null;
+
+  let latest = projects[0];
+
+  for (let i = 1; i < projects.length; i++) {
+    if (projects[i].updatedAt > latest.updatedAt) {
+      latest = projects[i];
+    }
+  }
+
+  return latest;
+}
+
+function getOldestAndNewest(projects: Project[]) {
+  if (projects.length === 0) return { oldest: null, newest: null };
+
+  let oldest = projects[0];
+  let newest = projects[0];
+
+  for (let i = 1; i < projects.length; i++) {
+    if (projects[i].updatedAt < oldest.updatedAt) oldest = projects[i];
+    if (projects[i].updatedAt > newest.updatedAt) newest = projects[i];
+  }
+
+  return { oldest, newest };
+}
+```
+
+**복사나 정렬 없이** 한 번만 순회합니다.
+
+**대안 (작은 배열에서는 `Math.min` / `Math.max`):**
+
+```typescript
+const numbers = [5, 2, 8, 1, 9];
+const min = Math.min(...numbers);
+const max = Math.max(...numbers);
+```
+
+짧은 배열에는 편하지만, **`...` 스프레드**는 인자 개수 제한 때문에 **아주 큰 배열**에서는 느리거나 **에러**가 날 수 있습니다. (Chrome·Safari 등에서 한계 길이는 환경마다 다름 — [fiddle](https://jsfiddle.net/qw1jabsx/4/) 참고.) **안정적인 결과를 얻으려면** 반복문을 사용하는 방법을 권장합니다.
+
+---
+
+### 7.13 Use Set/Map for O(1) Lookups (O(1) 조회에는 Set/Map을 사용하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / O(n)에서 O(1)에 가깝게)
+
+포함 여부를 **반복해서** 확인할 때는 허용 목록을 배열이 아니라 **Set/Map**으로 두세요.
+
+**잘못된 예 (검사마다 O(n)):**
+
+```typescript
+const allowedIds = ['a', 'b', 'c', ...]
+// item마다 allowedIds 전체를 선형 탐색
+items.filter(item => allowedIds.includes(item.id))
+```
+
+**올바른 예 (검사마다 O(1)에 가깝게):**
+
+```typescript
+const allowedIds = new Set(['a', 'b', 'c', ...])
+items.filter(item => allowedIds.has(item.id))
+```
+
+---
+
+### 7.14 Use toSorted() Instead of sort() for Immutability (불변성을 유지하려면 sort() 대신 toSorted()를 사용하세요.)
+
+- 영향도: 중상 (MEDIUM-HIGH / React 상태의 변형 버그 방지)
+
+`.sort()`는 **배열 그대로 원본** 배열을 바꿉니다. React의 **props/state** 배열에 쓰면 원본이 망가져 버그가 발생할 수 있습니다. `.toSorted()`로 **새 배열**을 받으세요.
+
+**잘못된 예 (원본 배열 변형):**
+
+```typescript
+function UserList({ users }: { users: User[] }) {
+  // users prop 배열을 직접 정렬해 뮤테이트함
+  const sorted = useMemo(
+    () => users.sort((a, b) => a.name.localeCompare(b.name)),
+    [users]
+  );
+  return <div>{sorted.map(renderUser)}</div>;
+}
+```
+
+**올바른 예 (새 배열):**
+
+```typescript
+function UserList({ users }: { users: User[] }) {
+  const sorted = useMemo(
+    () => users.toSorted((a, b) => a.name.localeCompare(b.name)),
+    [users]
+  );
+  return <div>{sorted.map(renderUser)}</div>;
+}
+```
+
+**React에서 중요한 이유:**
+
+1. **props/state 변경은 React의 불변성 모델을 깨뜨립니다.** React는 props와 state가 읽기 전용으로 처리될 것을 기대합니다.
+2. 클로저/effect 안에서 배열을 고치면 **stale, 예기치 않은 동작**이 발생할 수 있습니다.
+
+**브라우저 지원 (구형 환경 폴백):**
+
+`.toSorted()`는 모든 최신 브라우저(Chrome 110 이상, Safari 16 이상, Firefox 115 이상, Node.js 20 이상)에서 사용할 수 있습니다. 이전 환경이라면 스프레드 연산자를 사용하세요.
+
+```typescript
+const sorted = [...items].sort((a, b) => a.value - b.value);
+```
+
+**그 밖 불변 배열 메서드:**
+
+- `.toSorted()` — 정렬
+- `.toReversed()` — 뒤집기
+- `.toSpliced()` — splice에 해당
+- `.with()` — 인덱스 값 교체
