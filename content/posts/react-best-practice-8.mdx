@@ -1,0 +1,212 @@
+---
+title: "Vercel의 React Best Practices 톺아보기 [8]"
+date: "2026-04-10"
+description: "React Best Practices를 읽어보며 (고급 패턴)"
+metaDescription: "Vercel React Best Practices 시리즈 8편, 고급 패턴(LOW). useEffectEvent deps 제외, 앱 초기화 한 번만, 핸들러 ref·useEffectEvent, 디바운스까지 예시와 함께 정리합니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Frontend"
+tags: ["React", "Next.js", "React Best Practices", "Optimization"]
+thumbnail: "/images/thumbnails/rbp.webp"
+---
+
+## 8. 고급 패턴 - 낮음 (LOW)
+
+세심한 구현이 필요한 특정 사례에 대한 고급 패턴입니다.
+
+### 8.1 Do Not Put Effect Events in Dependency Arrays (Effect Event를 의존성 배열에 넣지 마세요.)
+
+- 영향도: 낮음 (LOW / 불필요한 effect 재실행, 린트 오류 방지)
+
+Effect Event 함수는 **안정적인 참조가 아닙니다.** **렌더마다** 의도적으로 **다른 함수**로 취급됩니다. `useEffectEvent`가 돌려준 함수를 **`useEffect`의 의존성 배열에 넣지 마세요.** 반응해야 하는 **실제 값**(예: `roomId`)만 deps에 두고, Effect Event는 **effect 본문**이나 그 effect가 만든 구독 **안에서만** 호출하세요.
+
+**잘못된 예 (Effect Event를 의존성에 포함):**
+
+```tsx
+import { useEffect, useEffectEvent } from "react";
+
+function ChatRoom({
+  roomId,
+  onConnected,
+}: {
+  roomId: string;
+  onConnected: () => void;
+}) {
+  const handleConnected = useEffectEvent(onConnected);
+
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.on("connected", handleConnected);
+    connection.connect();
+
+    return () => connection.disconnect();
+  }, [roomId, handleConnected]); // handleConnected는 매 렌더마다 달라짐 → effect가 매번 다시 실행됨
+}
+```
+
+Effect Event를 deps에 넣으면 **렌더마다 effect가 다시 돌고**, React Hooks **린트 규칙**에도 걸릴 수 있습니다.
+
+**올바른 예 (반응 값만 의존, Effect Event는 제외):**
+
+```tsx
+import { useEffect, useEffectEvent } from "react";
+
+function ChatRoom({
+  roomId,
+  onConnected,
+}: {
+  roomId: string;
+  onConnected: () => void;
+}) {
+  const handleConnected = useEffectEvent(onConnected);
+
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.on("connected", handleConnected);
+    connection.connect();
+
+    return () => connection.disconnect();
+  }, [roomId]);
+}
+```
+
+참고: [React useEffectEvent — Effect Event in deps](https://react.dev/reference/react/useEffectEvent#effect-event-in-deps)
+
+---
+
+### 8.2 Initialize App Once, Not Per Mount (앱 초기화는 마운트마다가 아닌 한 번만 진행하세요.)
+
+- 영향도: 중하 (LOW-MEDIUM / 개발 과정에서 중복 초기화 방지)
+
+**앱 전체에서 딱 한 번**만 돌아야 하는 초기화를 컴포넌트의 `useEffect([])`에만 두지 마세요. 컴포넌트는 **언마운트 후 다시 마운트**될 수 있고, effect는 **다시 실행**됩니다. **모듈 수준 플래그**나 **엔트리 모듈 최상단**에서 한 번만 돌게 하세요.
+
+**잘못된 예 (개발 환경에선 두 번, 리마운트 시 또 실행):**
+
+```tsx
+function Comp() {
+  useEffect(() => {
+    loadFromStorage();
+    checkAuthToken();
+  }, []);
+
+  // ...
+}
+```
+
+**올바른 예 (앱 로드당 한 번에 가깝게):**
+
+```tsx
+let didInit = false;
+
+function Comp() {
+  useEffect(() => {
+    if (didInit) return;
+    didInit = true;
+    loadFromStorage();
+    checkAuthToken();
+  }, []);
+
+  // ...
+}
+```
+
+참고: [Initializing the application](https://react.dev/learn/you-might-not-need-an-effect#initializing-the-application)
+
+---
+
+### 8.3 Store Event Handlers in Refs (이벤트 핸들러는 ref에 저장하세요.)
+
+- 영향도: 낮음 (LOW / 안정적인 구독)
+
+콜백 변경 시 재구독이 필요하지 않은 effect에서 콜백을 사용할 때는 **콜백을 ref에 저장하세요.**
+
+**잘못된 예 (handler가 바뀔 때마다 구독 해제, 재등록):**
+
+```tsx
+function useWindowEvent(event: string, handler: (e) => void) {
+  useEffect(() => {
+    window.addEventListener(event, handler);
+    return () => window.removeEventListener(event, handler);
+  }, [event, handler]);
+}
+```
+
+**올바른 예 (event만 바뀔 때 구독 갱신):**
+
+```tsx
+function useWindowEvent(event: string, handler: (e) => void) {
+  const handlerRef = useRef(handler);
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+
+  useEffect(() => {
+    const listener = (e) => handlerRef.current(e);
+    window.addEventListener(event, listener);
+    return () => window.removeEventListener(event, listener);
+  }, [event]);
+}
+```
+
+**대안: 최신 React에서는 `useEffectEvent`:**
+
+```tsx
+import { useEffectEvent } from "react";
+
+function useWindowEvent(event: string, handler: (e) => void) {
+  const onEvent = useEffectEvent(handler);
+
+  useEffect(() => {
+    window.addEventListener(event, onEvent);
+    return () => window.removeEventListener(event, onEvent);
+  }, [event]);
+}
+```
+
+`useEffectEvent`는 같은 목적을 더 단순한 API로 제공합니다. **참조는 안정적**이면서 **항상 최신 handler**를 호출합니다.
+
+---
+
+### 8.4 useEffectEvent for Stable Callback Refs (안정적인 콜백 참조를 위해 useEffectEvent를 사용하세요.)
+
+- 영향도: 낮음 (LOW / 불필요한 effect 재실행 방지)
+
+콜백 안에서 **최신 값**을 쓰되, 그걸 **의존성 배열에 넣지 않아도** 됩니다. **오래된 클로저** 생성은 피하고, **콜백이 바뀔 때마다 이펙트가 다시 도는 것**도 막습니다.
+
+**잘못된 예 (`onSearch`가 바뀔 때마다 이펙트 재실행):**
+
+```tsx
+function SearchInput({ onSearch }: { onSearch: (q: string) => void }) {
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => onSearch(query), 300);
+    return () => clearTimeout(timeout);
+  }, [query, onSearch]);
+}
+```
+
+**올바른 예 (React `useEffectEvent`):**
+
+```tsx
+import { useEffectEvent } from "react";
+
+function SearchInput({ onSearch }: { onSearch: (q: string) => void }) {
+  const [query, setQuery] = useState("");
+  // 최신 onSearch를 호출하지만, 이펙트 deps에는 넣지 않음
+  const onSearchEvent = useEffectEvent(onSearch);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => onSearchEvent(query), 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+}
+```
+
+## 마치며
+
+Vercel의 React Best Practices를 1챕터부터 8챕터까지 읽으며 성능 최적화 패턴을 정리해 볼 수 있었습니다.
+
+처음엔 숨은 비법이 많을 거라 기대했는데, 항목을 하나씩 읽다 보니 Vercel만의 대단하고 어마무시한 기법이라기보다는 React/Next.js 개발에서 흔히 접할 수 있는 안티 패턴과 그에 대한 대응이 많았다는 느낌이었고 가볍게 읽어 볼수 있었습니다.
+
+앞으로 개발할 때 필요할 때마다 하나씩 꺼내 보며 리마인드할 수 있게 되어 기쁩니다.
+(에이전트 전용 Skills용으로 만든 룰이라, 사실 AI에 학습시키면 그만이기도 합니다…ㅠㅠ)
