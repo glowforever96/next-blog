@@ -18,6 +18,3 @@ export { default as PostCard } from "./ui/post-card";
 export { default as PostHeader } from "./ui/post-header";
 export { default as PostBody } from "./ui/post-body";
 export { default as PostNavigation } from "./ui/post-navigation";
-
-// model
-export { default as useTOC } from "./model/useTOC";
