@@ -1,13 +1,17 @@
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import {
   getAdjacentPosts,
   getAllPostSlugs,
   getPostBySlug,
-} from "@/entities/post/api/mdx";
-import PostHeader from "@/entities/post/ui/post-header";
-import PostBody from "@/entities/post/ui/post-body";
+  PostBody,
+  PostHeader,
+  PostNavigation,
+} from "@/entities/post";
 import { Giscus } from "@/features/comments";
-import PostNavigation from "@/entities/post/ui/post-navigation";
+
+const getPostCached = cache((slug: string) => getPostBySlug(slug));
+const getAdjacentPostsCached = cache((slug: string) => getAdjacentPosts(slug));
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -22,7 +26,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = getPostCached(slug);
 
   return {
     title: post.title,
@@ -76,8 +80,8 @@ export default async function PostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
-  const [previousPost, nextPost] = getAdjacentPosts(slug);
+  const post = getPostCached(slug);
+  const [previousPost, nextPost] = getAdjacentPostsCached(slug);
 
   if (!post) {
     notFound();
