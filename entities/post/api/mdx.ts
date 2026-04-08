@@ -69,3 +69,14 @@ export function getAllPostSlugs(): string[] {
   const fileNames = fs.readdirSync(postsDirectory);
   return fileNames.map((fileName) => fileName.replace(/\.mdx$/, ""));
 }
+
+export function getAdjacentPosts(slug: string) {
+  const posts = getAllPosts();
+  const index = posts.findIndex((p) => p.slug === slug);
+
+  if (index === -1) {
+    return [null, null];
+  }
+
+  return [posts[index + 1] ?? null, posts[index - 1] ?? null];
+}

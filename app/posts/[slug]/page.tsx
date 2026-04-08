@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
-import { getAllPostSlugs, getPostBySlug } from "@/entities/post/api/mdx";
+import {
+  getAdjacentPosts,
+  getAllPostSlugs,
+  getPostBySlug,
+} from "@/entities/post/api/mdx";
 import PostHeader from "@/entities/post/ui/post-header";
 import PostBody from "@/entities/post/ui/post-body";
+import { Giscus } from "@/features/comments";
+import PostNavigation from "@/entities/post/ui/post-navigation";
 
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
@@ -71,6 +77,7 @@ export default async function PostPage({
 }) {
   const { slug } = await params;
   const post = getPostBySlug(slug);
+  const [previousPost, nextPost] = getAdjacentPosts(slug);
 
   if (!post) {
     notFound();
@@ -114,6 +121,8 @@ export default async function PostPage({
         />
         <PostBody content={post.content} />
       </article>
+      <Giscus />
+      <PostNavigation previousPost={previousPost} nextPost={nextPost} />
     </>
   );
 }

@@ -1,4 +1,3 @@
-import Giscus from "@/features/comments/ui/giscus";
 import BackButton from "@/shared/ui/back-button";
 import TableOfContents from "@/entities/post/ui/table-of-contents";
 import { MDXRemote } from "next-mdx-remote/rsc";
@@ -34,7 +33,6 @@ export default function PostBody({ content }: { content: string }) {
             />
           </div>
           <BackButton />
-          <Giscus />
         </div>
         <aside className="hidden lg:block w-64 flex-shrink-0">
           <TableOfContents />
