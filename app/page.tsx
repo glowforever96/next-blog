@@ -1,7 +1,6 @@
 import { getSidebarData } from "@/entities/post/lib/sidebar";
 import Sidebar from "@/widgets/sidebar/ui/sidebar";
 import PostsList from "@/widgets/posts-list/ui/posts-list";
-import { Suspense } from "react";
 import { getAllPosts } from "@/entities/post/api/mdx";
 
 interface HomeProps {
@@ -9,6 +8,7 @@ interface HomeProps {
 }
 
 export default async function Home({ searchParams }: HomeProps) {
+  const params = await searchParams;
   const { sidebarData, categoryCounts } = getSidebarData();
   const posts = getAllPosts();
 
@@ -20,9 +20,7 @@ export default async function Home({ searchParams }: HomeProps) {
         posts={posts}
       />
       <section className="flex-1">
-        <Suspense fallback={null}>
-          <PostsList searchParams={searchParams} />
-        </Suspense>
+        <PostsList searchParams={params} />
       </section>
     </div>
   );

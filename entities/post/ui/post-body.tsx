@@ -34,7 +34,7 @@ export default function PostBody({ content }: { content: string }) {
           </div>
           <BackButton />
         </div>
-        <aside className="hidden lg:block w-64 flex-shrink-0">
+        <aside className="hidden lg:block w-64 shrink-0">
           <TableOfContents />
         </aside>
       </div>

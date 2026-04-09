@@ -5,14 +5,13 @@ import PostsPagination from "@/widgets/posts-list/ui/posts-pagination";
 const POSTS_PER_PAGE = 10;
 
 interface PostsListProps {
-  searchParams: Promise<{ c?: string; t?: string; page?: string }>;
+  searchParams: { c?: string; t?: string; page?: string };
 }
 
-export default async function PostsList({ searchParams }: PostsListProps) {
-  const params = await searchParams;
-  const category = params.c;
-  const tag = params.t;
-  const pageParam = params.page;
+export default function PostsList({ searchParams }: PostsListProps) {
+  const category = searchParams.c;
+  const tag = searchParams.t;
+  const pageParam = searchParams.page;
 
   const allPosts = getAllPosts(category, tag);
   const totalPosts = allPosts.length;
@@ -46,7 +45,7 @@ export default async function PostsList({ searchParams }: PostsListProps) {
       >
         {posts.map((post, index) => (
           <li key={post.slug} className="contents">
-            <PostCard post={post} priority={index < 2} />
+            <PostCard post={post} priority={index < 4} />
           </li>
         ))}
       </ul>
