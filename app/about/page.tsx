@@ -1,5 +1,6 @@
 import AboutBody from "@/widgets/about/ui/about-body";
 import AboutHeader from "@/widgets/about/ui/about-header";
+import { SITE_URL } from "@/shared/lib/site";
 import { Metadata } from "next";
 
 export function generateMetadata(): Metadata {
@@ -21,7 +22,7 @@ export function generateMetadata(): Metadata {
       title: "KWON SOONYONG | About",
       description:
         "사용자 경험에 진심인 프론트엔드 개발자 권순용입니다. React, Next.js, TypeScript를 주로 사용합니다.",
-      url: "https://kwonsoonyong-dev.vercel.app/about",
+      url: `${SITE_URL}/about`,
       siteName: "soonyong devlog",
       locale: "ko_KR",
       type: "profile",
@@ -35,7 +36,7 @@ export function generateMetadata(): Metadata {
       ],
     },
     alternates: {
-      canonical: "https://kwonsoonyong-dev.vercel.app/about",
+      canonical: `${SITE_URL}/about`,
     },
   };
 }

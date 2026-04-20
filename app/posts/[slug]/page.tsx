@@ -9,6 +9,7 @@ import {
   PostNavigation,
 } from "@/entities/post";
 import { Giscus } from "@/features/comments";
+import { SITE_URL } from "@/shared/lib/site";
 
 const getPostCached = cache((slug: string) => getPostBySlug(slug));
 const getAdjacentPostsCached = cache((slug: string) => getAdjacentPosts(slug));
@@ -36,7 +37,7 @@ export async function generateMetadata({
     openGraph: {
       type: "article",
       locale: "ko_KR",
-      url: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+      url: `${SITE_URL}/posts/${slug}`,
       siteName: "soonyong devlog",
       title: post.title,
       description: post.metaDescription,
@@ -58,7 +59,7 @@ export async function generateMetadata({
       images: [post.thumbnail],
     },
     alternates: {
-      canonical: `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+      canonical: `${SITE_URL}/posts/${slug}`,
     },
     robots: {
       index: true,
@@ -102,11 +103,11 @@ export default async function PostPage({
     publisher: {
       "@type": "Organization",
       name: "soonyong devlog",
-      url: "https://kwonsoonyong-dev.vercel.app",
+      url: SITE_URL,
     },
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://kwonsoonyong-dev.vercel.app/posts/${slug}`,
+      "@id": `${SITE_URL}/posts/${slug}`,
     },
   };
 

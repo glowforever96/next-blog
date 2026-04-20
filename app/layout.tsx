@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { SITE_URL } from "@/shared/lib/site";
 import Header from "@/widgets/header/ui/header";
 import Footer from "@/widgets/footer/ui/footer";
 import { ThemeProvider } from "@/shared/ui/theme-provider";
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   description:
     "프론트엔드 개발자 권순용의 개발 블로그입니다. React, Next.js, TypeScript 등 웹 개발 관련 지식과 경험을 공유합니다.",
 
-  metadataBase: new URL("https://kwonsoonyong-dev.vercel.app"),
+  metadataBase: new URL(SITE_URL),
   keywords: [
     "프론트엔드",
     "개발 블로그",
@@ -35,14 +36,14 @@ export const metadata: Metadata = {
     "soonyong",
   ],
 
-  authors: [{ name: "권순용", url: "https://kwonsoonyong-dev.vercel.app" }],
+  authors: [{ name: "권순용", url: SITE_URL }],
   creator: "권순용",
   publisher: "권순용",
 
   openGraph: {
     type: "website",
     locale: "ko_KR",
-    url: "https://kwonsoonyong-dev.vercel.app",
+    url: SITE_URL,
     siteName: "soonyong devlog",
     title: "soonyong devlog",
     description: "프론트엔드 개발자 권순용의 개발 블로그입니다.",
@@ -75,7 +76,7 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://kwonsoonyong-dev.vercel.app",
+    canonical: SITE_URL,
   },
   verification: {
     google: "jcFfNouIs8upY3-l5s12hGarIC_M47SgvNKwvY7MS5Q",

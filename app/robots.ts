@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { SITE_URL } from "@/shared/lib/site";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -14,7 +15,7 @@ export default function robots(): MetadataRoute.Robots {
         crawlDelay: 0,
       },
     ],
-    sitemap: "https://kwonsoonyong-dev.vercel.app/sitemap.xml",
-    host: "https://kwonsoonyong-dev.vercel.app",
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }
