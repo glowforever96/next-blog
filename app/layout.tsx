@@ -6,6 +6,7 @@ import Header from "@/widgets/header/ui/header";
 import Footer from "@/widgets/footer/ui/footer";
 import { ThemeProvider } from "@/shared/ui/theme-provider";
 import { Toaster } from "sonner";
+import { ConsoleGreeting } from "@/features/console-greeting";
 
 const pretendard = localFont({
   src: "../fonts/PretendardVariable.woff2",
@@ -106,6 +107,7 @@ export default function RootLayout({
           </main>
           <Toaster position="top-center" />
           <Footer />
+          <ConsoleGreeting />
         </ThemeProvider>
       </body>
     </html>
