@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { SidebarData } from "@/entities/post/lib/sidebar";
 import { useSidebarStore } from "@/widgets/sidebar/model/sidebar-store";
 import { XIcon } from "lucide-react";
@@ -19,6 +20,8 @@ export default function Sidebar({
   posts,
 }: SidebarProps) {
   const { isOpen, close } = useSidebarStore();
+  const searchParams = useSearchParams();
+  const isFiltering = searchParams.has("c") || searchParams.has("t");
 
   const SidebarContent = () => (
     <nav className="space-y-2 text-sm" aria-label="카테고리 네비게이션">
@@ -27,6 +30,7 @@ export default function Sidebar({
           <Link
             href={`/?c=${key}`}
             onClick={close}
+            replace={isFiltering}
             className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors"
           >
             <span>{key}</span> <span>{categoryCounts[key]}</span>
@@ -37,6 +41,7 @@ export default function Sidebar({
                 <Link
                   href={`/?c=${key}&t=${item.tag}`}
                   onClick={close}
+                  replace={isFiltering}
                   className="flex justify-between hover:text-blue-600 transition-colors"
                 >
                   <span>{item.tag}</span> <span>{item.count}</span>
