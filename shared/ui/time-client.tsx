@@ -13,11 +13,12 @@ export default function TimeClient({
   className?: string;
 }) {
   const [formattedDate, setFormattedDate] = useState<string>(
-    fallbackText ?? date
+    fallbackText ?? date,
   );
 
   useEffect(() => {
     const now = new Date();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormattedDate(formatRelativeDate({ date, now }));
   }, [date]);
 

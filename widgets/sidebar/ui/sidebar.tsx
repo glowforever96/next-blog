@@ -14,16 +14,20 @@ interface SidebarProps {
   posts: BlogPost[];
 }
 
-export default function Sidebar({
+interface SidebarContentProps {
+  sidebarData: SidebarData;
+  categoryCounts: { [key: string]: number };
+  close: () => void;
+  isFiltering: boolean;
+}
+
+function SidebarContent({
   sidebarData,
   categoryCounts,
-  posts,
-}: SidebarProps) {
-  const { isOpen, close } = useSidebarStore();
-  const searchParams = useSearchParams();
-  const isFiltering = searchParams.has("c") || searchParams.has("t");
-
-  const SidebarContent = () => (
+  close,
+  isFiltering,
+}: SidebarContentProps) {
+  return (
     <nav className="space-y-2 text-sm" aria-label="카테고리 네비게이션">
       {Object.entries(sidebarData).map(([key, value]) => (
         <div key={key}>
@@ -53,13 +57,25 @@ export default function Sidebar({
       ))}
     </nav>
   );
+}
+
+export default function Sidebar({
+  sidebarData,
+  categoryCounts,
+  posts,
+}: SidebarProps) {
+  const { isOpen, close } = useSidebarStore();
+  const searchParams = useSearchParams();
+  const isFiltering = searchParams.has("c") || searchParams.has("t");
+
+  const contentProps = { sidebarData, categoryCounts, close, isFiltering };
 
   return (
     <>
       <div className="flex">
         <aside className="hidden md:block w-52 border-r border-border pr-8">
           <div className="sticky top-[92px]">
-            <SidebarContent />
+            <SidebarContent {...contentProps} />
           </div>
         </aside>
       </div>
@@ -73,7 +89,7 @@ export default function Sidebar({
 
       <aside
         className={`
-          fixed top-0 left-0 h-full w-68 bg-background z-50 
+          fixed top-0 left-0 h-full w-68 bg-background z-50
           transform transition-transform duration-300 ease-in-out
           md:hidden overflow-y-auto border-r border-border
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
@@ -94,7 +110,7 @@ export default function Sidebar({
             </div>
           </div>
           <div className="mt-12">
-            <SidebarContent />
+            <SidebarContent {...contentProps} />
           </div>
         </div>
       </aside>

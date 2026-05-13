@@ -15,6 +15,7 @@ function useTOC() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>("[data-toc-root]");
     if (!root) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHeadingInfo([]);
       return;
     }
@@ -53,7 +54,7 @@ function useTOC() {
 
     const observer = new IntersectionObserver(
       observerCallback,
-      observerOptions
+      observerOptions,
     );
 
     headingInfo.forEach(({ id }) => {
