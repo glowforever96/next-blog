@@ -76,9 +76,6 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  alternates: {
-    canonical: SITE_URL,
-  },
   verification: {
     google: "oA89k8BNf0vB-_YfH6V1TKU4-czFHwBPGNUu5w1aYCc",
     other: {

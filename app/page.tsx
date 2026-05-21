@@ -3,6 +3,7 @@ import { getSidebarData } from "@/entities/post/lib/sidebar";
 import Sidebar from "@/widgets/sidebar/ui/sidebar";
 import PostsList from "@/widgets/posts-list/ui/posts-list";
 import { getAllPosts } from "@/entities/post/api/mdx";
+import { SITE_URL } from "@/shared/lib/site";
 
 interface HomeProps {
   searchParams: Promise<{ c?: string; t?: string; page?: string }>;
@@ -14,7 +15,9 @@ export async function generateMetadata({
   const { c, t, page } = await searchParams;
   const hasFilter = Boolean(c || t || page);
 
-  if (!hasFilter) return {};
+  if (!hasFilter) {
+    return { alternates: { canonical: SITE_URL } };
+  }
 
   return {
     robots: {
