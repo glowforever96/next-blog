@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSidebarData } from "@/entities/post/lib/sidebar";
 import Sidebar from "@/widgets/sidebar/ui/sidebar";
 import PostsList from "@/widgets/posts-list/ui/posts-list";
@@ -5,6 +6,23 @@ import { getAllPosts } from "@/entities/post/api/mdx";
 
 interface HomeProps {
   searchParams: Promise<{ c?: string; t?: string; page?: string }>;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: HomeProps): Promise<Metadata> {
+  const { c, t, page } = await searchParams;
+  const hasFilter = Boolean(c || t || page);
+
+  if (!hasFilter) return {};
+
+  return {
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: { index: false, follow: true },
+    },
+  };
 }
 
 export default async function Home({ searchParams }: HomeProps) {
