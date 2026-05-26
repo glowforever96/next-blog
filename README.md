@@ -1,6 +1,6 @@
 # soonyong.devlog
 
-프론트엔드 개발자 **권순용**의 개인 개발 블로그입니다.
+저의 개인 개발 블로그입니다.
 React, Next.js, TypeScript 등 웹 개발 관련 학습과 경험을 기록하고 공유합니다.
 
 🔗 **Live**: [https://www.glowforever96.dev](https://www.glowforever96.dev)
@@ -81,12 +81,12 @@ pnpm dev
 
 ## Scripts
 
-| 명령어         | 설명                              |
-| -------------- | --------------------------------- |
-| `pnpm dev`     | 개발 서버 실행 (Turbopack)        |
-| `pnpm build`   | 프로덕션 빌드                     |
-| `pnpm start`   | 빌드 결과물 실행                  |
-| `pnpm lint`    | ESLint 검사                       |
+| 명령어       | 설명                       |
+| ------------ | -------------------------- |
+| `pnpm dev`   | 개발 서버 실행 (Turbopack) |
+| `pnpm build` | 프로덕션 빌드              |
+| `pnpm start` | 빌드 결과물 실행           |
+| `pnpm lint`  | ESLint 검사                |
 
 ## Writing a Post
 

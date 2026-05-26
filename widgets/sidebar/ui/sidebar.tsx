@@ -3,9 +3,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { SidebarData } from "@/entities/post/lib/sidebar";
 import { useSidebarStore } from "@/widgets/sidebar/model/sidebar-store";
-import { XIcon } from "lucide-react";
+import { ChevronsUpDown, XIcon } from "lucide-react";
 import { ModeToggle } from "@/features/theme-toggle/ui/mode-toggle";
 import Search from "@/features/search/ui/search";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/shared/ui/collapsible";
 import { BlogPost } from "@/shared/types";
 
 interface SidebarProps {
@@ -29,31 +34,42 @@ function SidebarContent({
 }: SidebarContentProps) {
   return (
     <nav className="space-y-2 text-sm" aria-label="카테고리 네비게이션">
-      {Object.entries(sidebarData).map(([key, value]) => (
-        <div key={key}>
-          <Link
-            href={`/?c=${key}`}
-            onClick={close}
-            replace={isFiltering}
-            className="font-semibold text-foreground mb-2 flex justify-between hover:text-blue-600 transition-colors"
-          >
-            <span>{key}</span> <span>{categoryCounts[key]}</span>
-          </Link>
-          <ul className="flex flex-col gap-1">
-            {value.map((item) => (
-              <li key={item.tag} className="ml-2 mb-0 text-muted-foreground">
-                <Link
-                  href={`/?c=${key}&t=${item.tag}`}
-                  onClick={close}
-                  replace={isFiltering}
-                  className="flex justify-between hover:text-blue-600 transition-colors"
-                >
-                  <span>{item.tag}</span> <span>{item.count}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {Object.entries(sidebarData).map(([key, value], index) => (
+        <Collapsible key={key} defaultOpen={index === 0}>
+          <div className="flex items-center gap-1 mb-2">
+            <Link
+              href={`/?c=${key}`}
+              onClick={close}
+              replace={isFiltering}
+              className="font-semibold text-foreground flex-1 flex justify-between hover:text-blue-600 transition-colors mr-1"
+            >
+              <span>{key}</span> <span>{categoryCounts[key]}</span>
+            </Link>
+            <CollapsibleTrigger
+              aria-label={`${key} 카테고리 토글`}
+              className="cursor-pointer p-1 -mr-1 rounded hover:bg-muted text-muted-foreground transition-colors group"
+            >
+              <ChevronsUpDown size={16} />
+              <span className="sr-only">Toggle details</span>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            <ul className="flex flex-col gap-1">
+              {value.map((item) => (
+                <li key={item.tag} className="ml-2 mb-0 text-muted-foreground">
+                  <Link
+                    href={`/?c=${key}&t=${item.tag}`}
+                    onClick={close}
+                    replace={isFiltering}
+                    className="flex justify-between hover:text-blue-600 transition-colors"
+                  >
+                    <span>{item.tag}</span> <span>{item.count}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       ))}
     </nav>
   );
@@ -73,8 +89,8 @@ export default function Sidebar({
   return (
     <>
       <div className="flex">
-        <aside className="hidden md:block w-52 border-r border-border pr-8">
-          <div className="sticky top-[92px]">
+        <aside className="hidden md:block w-52 border-r border-border">
+          <div className="sticky top-[92px] max-h-[calc(100vh-92px)] overflow-y-auto pr-8 pb-4">
             <SidebarContent {...contentProps} />
           </div>
         </aside>
