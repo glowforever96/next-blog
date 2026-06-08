@@ -3,17 +3,20 @@ import TimeClient from "@/shared/ui/time-client";
 import { formatAbsoluteDate } from "@/shared/lib/date";
 import ViewCounter from "./view-counter";
 import { Spinner } from "@/shared/ui/spinner";
+import { ClockIcon } from "lucide-react";
 
 export default function PostHeader({
   title,
   date,
   tags,
   slug,
+  readingTime,
 }: {
   title: string;
   date: string;
   tags: string[];
   slug: string;
+  readingTime: number;
 }) {
   const fallbackText = formatAbsoluteDate({ date });
 
@@ -23,9 +26,14 @@ export default function PostHeader({
         <h1 className="text-4xl font-bold mb-4 text-foreground">{title}</h1>
         <div className="flex items-center gap-4 text-muted-foreground">
           <TimeClient date={date} fallbackText={fallbackText} />
+
           <Suspense fallback={<Spinner />}>
             <ViewCounter slug={slug} />
           </Suspense>
+          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+            <ClockIcon className="size-3.5" />
+            {readingTime}분
+          </span>
         </div>
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           {tags.map((tag) => (

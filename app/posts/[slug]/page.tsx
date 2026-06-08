@@ -10,6 +10,7 @@ import {
 } from "@/entities/post";
 import { Giscus } from "@/features/comments";
 import { SITE_URL } from "@/shared/lib/site";
+import { getReadingTime } from "@/shared/lib/reading-time";
 
 const getPostCached = cache((slug: string) => getPostBySlug(slug));
 const getAdjacentPostsCached = cache((slug: string) => getAdjacentPosts(slug));
@@ -88,6 +89,8 @@ export default async function PostPage({
     notFound();
   }
 
+  const readingTime = getReadingTime(post.content);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -123,6 +126,7 @@ export default async function PostPage({
           date={post.date}
           tags={post.tags}
           slug={slug}
+          readingTime={readingTime}
         />
         <PostBody content={post.content} />
       </article>
