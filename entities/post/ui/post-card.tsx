@@ -13,7 +13,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
     <Link
       key={post.slug}
       href={`/posts/${post.slug}`}
-      className="bg-card rounded-sm overflow-hidden shadow-sm border border-border transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      className="bg-card rounded-sm overflow-hidden shadow-sm border border-border"
     >
       <article className="flex flex-col lg:flex-row">
         <div className="relative w-full lg:w-64 aspect-video bg-muted">
