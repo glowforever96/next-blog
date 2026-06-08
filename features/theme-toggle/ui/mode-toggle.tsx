@@ -9,9 +9,6 @@ export function ModeToggle() {
 
   return (
     <div className="flex items-center gap-1">
-      <p className="text-xs text-muted-foreground hidden md:block">
-        <Kbd>D</Kbd>를 눌러 테마를 변경할 수 있습니다.
-      </p>
       <Button
         variant="ghost"
         size="icon"
@@ -19,6 +16,9 @@ export function ModeToggle() {
       >
         <ThemeIcon />
       </Button>
+      <p className="text-xs text-muted-foreground hidden md:block">
+        <Kbd>D</Kbd> 테마 변경
+      </p>
     </div>
   );
 }
