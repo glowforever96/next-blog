@@ -1,0 +1,142 @@
+---
+title: "인생 첫 오픈소스 기여 회고 (Feat. React Compiler)"
+date: "2026-07-01"
+description: "클로드 만세"
+metaDescription: "사용하던 use-travel 라이브러리에서 React Compiler 관련 버그를 만나, 원인을 분석하고 직접 고쳐 기여하기까지의 과정을 정리한 첫 오픈소스 기여 회고입니다."
+author: "프론트엔드 개발자 권순용"
+parentCategory: "Devlog"
+tags: ["React", "React Compiler", "오픈소스 기여", "use-travel"]
+thumbnail: "/images/thumbnails/pwa.webp"
+---
+
+> 예전부터 오픈소스에 기여해보고 싶다는 생각은 있었지만, 막상 떠올리면 어렵고 거창한 일처럼 느껴져 선뜻 손이 가지 않았습니다. 그러던 중 우연한 기회에 인생 첫 오픈소스 기여에 성공했고, AI의 도움을 받아 생각보다 수월하게 마칠 수 있었습니다. 그 과정을 잊기 전에 회고로 남겨봅니다.
+
+## 들어가며
+
+제가 기여한 라이브러리는 [use-travel](https://github.com/mutativejs/use-travel)이라는 라이브러리입니다.
+
+사내에서 개발 중인 툴에 undo/redo 기능이 필요했는데, 히스토리 스택을 직접 굴리기보다 라이브러리를 통해 ~~꿀빨고~~ 구현하고 싶었습니다.
+
+우연히 해당 라이브러리를 알게 되었고, 상태 변경 이력을 JSON Patch로 관리해 주는 작은 훅 라이브러리였습니다. 적은 코드로 undo/redo 기능이 구현 가능했기에 프로젝트에 도입하게 되었습니다.
+
+선택할 때 스타 수가 아주 많은 편은 아니라 잠깐 망설이긴 했지만, 메인테이너가 [mutative](https://github.com/unadlib/mutative)의 저자이기도 했습니다. Immer를 대체하는 고성능 불변 상태 업데이트 라이브러리를 표방하는데, 꾸준히 관리되는 mutative 생태계 위에서 undo/redo을 담당하는 일부라는 점에서 믿고 쓸 만하다고 판단했습니다.
+(mutative는 npm 주간 다운로드 횟수가 70만이 넘습니다ㄷㄷ)
+
+## 이슈 발견
+
+```tsx
+// store.ts
+import { Travels } from "travels";
+
+export const travels = new Travels({ count: 0 });
+```
+
+```tsx
+export function Counter() {
+  const [state, setState, controls] = useTravelStore(travels);
+
+  return (
+    <div>
+      <span>{state.count}</span>
+      <button
+        onClick={() =>
+          setState((draft) => {
+            draft.count += 1;
+          })
+        }
+      >
+        Increment
+      </button>
+      <button onClick={() => controls.back()} disabled={!controls.canBack()}>
+        Undo
+      </button>
+    </div>
+  );
+}
+```
+
+라이브러리에서 히스토리를 관리하는 방식은 무척이나 간단합니다. 위 예시의 `controls` 객체가 undo/redo를 다루는 리모컨인데, `back()`으로 되돌리고 `canBack()`으로 더 되돌릴 게 있는지를 확인합니다.
+
+저의 프로젝트 코드에서 문제가 된 건 Undo 버튼의 `disabled={!controls.canBack()}` 한 줄이었습니다. 히스토리가 분명히 쌓이고 있는 상황임에도 버튼이 활성화되지 않는 문제가 발생했습니다.
+
+AI와 함께 원인을 분석해본 결과, 이 문제는 **React Compiler** 환경에서만 나타났고 그 동작 원리와도 깊이 연관돼 있었습니다.
+
+**React Compiler**는 렌더 중에 계산한 값을 자동으로 캐싱하고, **의존하는 값이 바뀌지 않으면 다시 계산하지 않습니다.** 수동 `useMemo` 없이도 알아서 메모이제이션을 해주는 게 핵심입니다. 하지만 라이브러리의 `controls` 객체는 라이브러리 내부에서 한 번 만들어지면 **계속 같은 참조로 유지되는** 안정적인 객체였습니다.
+
+```js
+// React Compiler 의사 코드
+let canBack;
+if (prevControls !== controls) {
+  // controls 참조가 바뀌었을 때만
+  canBack = controls.canBack(); // canBack() 을 다시 호출
+} else {
+  canBack = 캐시된_값; // 안 바뀌었으면 이전 값 재사용
+}
+```
+
+`controls`의 참조는 영영 바뀌지 않으니, `canBack()`은 **맨 처음 딱 한 번 호출된 `false`에 그대로 얼어붙게 되었고**, 히스토리가 아무리 쌓여도 버튼이 활성화 되지 않았던 이유가 여기 있었습니다.
+
+흥미로운 건, 같은 값을 **메서드 호출(`canBack()`)이 아니라 getter(프로퍼티 읽기)로 꺼내면** 멀쩡히 갱신된다는 점이었습니다. 컴파일러는 **메서드 호출 결과는 캐싱하지만, 프로퍼티 읽기는 매 렌더 그냥 다시 읽기** 때문입니다. getter는 읽을 때마다 함수가 실행되니, 그 안의 `canBack()`도 매번 최신값을 돌려주었습니다.
+
+명백히 **React Compiler** 환경에서 나타나는 버그라고 판단했고, 분명 저같은 이슈를 겪는 사람들이 있을거 같아 바로 이슈를 제기하게 되었습니다. 첫 오픈소스 기여를 할수있다는 생각에 살짝 설레기도 했습니다ㅎㅎ
+
+[이슈 본문](https://github.com/mutativejs/use-travel/issues/12)
+
+## 어떻게 고쳤는데?
+
+메인테이너가 PR은 환영한다는 답변이 날아왔고 바로 PR을 날릴수 있었습니다.
+
+기존 `canBack()` / `canForward()` 메서드는 그대로 두고, 그 위에 **`canUndo` / `canRedo` getter를 얹어** 렌더에서 안전하게 읽을 수 있게 하는 방향으로 구현을 진행했습니다.
+
+```ts
+// 첫 시도: 기존 controls 를 프로토타입 삼아 getter 두 개를 추가
+const controls = Object.create(base, {
+  canUndo: { get: () => base.canBack(), enumerable: true },
+  canRedo: { get: () => base.canForward(), enumerable: true },
+});
+```
+
+새로 만든 `controls.canUndo`도 잘 읽히고, `controls.back()` 같은 기존 메서드도 프로토타입을 타고 잘 호출이 되었지만 문제가 한가지 있었습니다.
+
+메인테이너가 친절하게 정확히 짚어줬는데, **`back()`·`canBack()` 같은 기존 메서드가 전부 프로토타입으로 밀려나서**, `Object.keys(controls)`나 `{ ...controls }` 스프레드를 하면 **메서드들이 통째로 사라진다**는 거였습니다.
+
+```ts
+const copy = { ...controls };
+copy.back; // undefined ❌ (프로토타입에 있어서 복사가 안 됨)
+```
+
+스프레드나 `Object.keys`는 객체 **자기 자신의(own) 프로퍼티**만 봅니다. `Object.create`로 만들면 기존 멤버가 전부 프로토타입이 되어버려, controls를 펼쳐 쓰면 사용자 코드가 깨지는 문제가 있었습니다.
+
+회사 환경에선 프론트엔드 개발을 혼자 진행하고 있는 상황이었어서 코드리뷰에 대한 갈망이 너무 있었는데, 이런 리뷰를 받게 되어 오랜만에 심장이 뛰는 순간이었습니다ㅎㅎ
+
+### 개선한 코드
+
+핵심은 기존 멤버를 **자기 프로퍼티로 유지**하면서 getter 두 개만 더하기였습니다. 프로토타입에 기대는 대신, 기존 객체의 **프로퍼티 서술자(descriptor)를 통째로 복사**해 새 객체에 직접 박았습니다.
+
+```ts
+// 개선: 기존 멤버를 own 프로퍼티로 복사 + getter 추가
+const controls = Object.defineProperties(
+  {},
+  {
+    ...Object.getOwnPropertyDescriptors(base), // 기존 멤버를 그대로 복사
+    canUndo: { get: () => base.canBack(), enumerable: true },
+    canRedo: { get: () => base.canForward(), enumerable: true },
+  },
+);
+```
+
+여러번 로컬에서 테스트를 진행하였고, 문제가 없다고 판단해 라이브러리 README까지 제가 새로 만든 기능에 대한 명세를 추가해 재작성하는 경험도 할 수 있었습니다. (클로드 만세)
+
+[PR 본문](https://github.com/mutativejs/use-travel/pull/13)
+
+![](https://velog.velcdn.com/images/boyfromthewell/post/cabf2cdd-39bf-461d-8128-3c8fc63f79a6/image.png)
+몇일의 기다림 끝에 메인테이너가 저의 PR을 최종적으로 머지했고, 새 버전도 릴리즈 해주었습니다 야호~
+(라이브러리의 첫 기여자가 되는 영광도 누렸습니다ㅎㅎ)
+
+## 마치며
+
+그 후 라이브러리를 버전업해서, 임시로 우회해 뒀던 코드를 지우고 제가 만든 기능으로 갈아끼웠습니다. 문제를 처음 발견한 제 앱이, 제가 만든 해결책의 첫 사용자가 된 셈이라 묘하게 뿌듯했습니다ㅎㅎ
+
+규모가 큰 라이브러리는 아니었지만 기여 과정에서 배운 건 생각보다 많았고, 무엇보다 혼자 짠 코드를 남에게 리뷰받고 함께 다듬는 경험이 오랜만이라 즐거웠습니다.
+
+오픈소스 기여라고 하면 늘 거창하고 멀게만 느껴졌는데, AI의 도움이 더해지니 영어 이슈/PR 작성/원인 분석도 한결 가벼웠습니다. 다음에는 더 큰 오픈소스에도 용기 내 기여해보고 싶습니다.
