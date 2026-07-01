@@ -7,6 +7,8 @@ export interface SidebarData {
   }[];
 }
 
+const CATEGORY_ORDER = ["Frontend", "Devlog", "DevOps"];
+
 export function getSidebarData() {
   const posts = getAllPosts();
 
@@ -33,5 +35,16 @@ export function getSidebarData() {
     }
   });
 
-  return { sidebarData, categoryCounts };
+  const orderedSidebarData: SidebarData = {};
+  Object.keys(sidebarData)
+    .sort((a, b) => {
+      const ia = CATEGORY_ORDER.indexOf(a);
+      const ib = CATEGORY_ORDER.indexOf(b);
+      return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+    })
+    .forEach((category) => {
+      orderedSidebarData[category] = sidebarData[category];
+    });
+
+  return { sidebarData: orderedSidebarData, categoryCounts };
 }

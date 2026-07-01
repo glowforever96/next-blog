@@ -34,8 +34,8 @@ function SidebarContent({
 }: SidebarContentProps) {
   return (
     <nav className="space-y-2 text-sm" aria-label="카테고리 네비게이션">
-      {Object.entries(sidebarData).map(([key, value], index) => (
-        <Collapsible key={key} defaultOpen={index === 0}>
+      {Object.entries(sidebarData).map(([key, value]) => (
+        <Collapsible key={key} defaultOpen={key === "Frontend"}>
           <div className="flex items-center gap-1 mb-2">
             <Link
               href={`/?c=${key}`}
