@@ -1,5 +1,6 @@
 // shared/ui public API
 // 외부에서 shared/ui 컴포넌트를 사용할 때 이 파일을 통해 import
+export { Badge, badgeVariants } from "./badge";
 export { Button } from "./button";
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./card";
 export { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./command";
