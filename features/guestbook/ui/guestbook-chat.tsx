@@ -27,7 +27,7 @@ export default function GuestbookChat({ entries }: { entries: Guestbook[] }) {
   const isEmpty = ordered.length === 0;
 
   return (
-    <div className="flex h-[70vh] min-h-105 flex-col overflow-hidden rounded-2xl border bg-card/40">
+    <div className="flex h-[calc(100dvh-280px)] min-h-80 flex-col overflow-hidden rounded-2xl border bg-card/40 md:h-[calc(100dvh-300px)]">
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <MessageScroller className="flex-1">
           <MessageScrollerViewport className="px-4 py-6 sm:px-6">
