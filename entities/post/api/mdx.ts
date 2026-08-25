@@ -6,8 +6,14 @@ import { getTime } from "date-fns";
 
 const postsDirectory = path.join(process.cwd(), "content/posts");
 
+function getPostFileNames(): string[] {
+  return fs
+    .readdirSync(postsDirectory)
+    .filter((fileName) => fileName.endsWith(".mdx"));
+}
+
 export function getAllPosts(category?: string, tag?: string): BlogPost[] {
-  const fileNames = fs.readdirSync(postsDirectory);
+  const fileNames = getPostFileNames();
 
   const allPostsData = fileNames.map((fileName) => {
     const slug = fileName.replace(/\.mdx$/, "");
@@ -46,8 +52,13 @@ export function getAllPosts(category?: string, tag?: string): BlogPost[] {
   return filteredPosts.sort((a, b) => getTime(b.date) - getTime(a.date));
 }
 
-export function getPostBySlug(slug: string): BlogPost {
+export function getPostBySlug(slug: string): BlogPost | null {
   const fullPath = path.join(postsDirectory, `${slug}.mdx`);
+
+  if (!fs.existsSync(fullPath)) {
+    return null;
+  }
+
   const fileContents = fs.readFileSync(fullPath, "utf8");
   const { data, content } = matter(fileContents);
 
@@ -66,8 +77,9 @@ export function getPostBySlug(slug: string): BlogPost {
 }
 
 export function getAllPostSlugs(): string[] {
-  const fileNames = fs.readdirSync(postsDirectory);
-  return fileNames.map((fileName) => fileName.replace(/\.mdx$/, ""));
+  return getPostFileNames().map((fileName) =>
+    fileName.replace(/\.mdx$/, "")
+  );
 }
 
 export function getAdjacentPosts(slug: string) {

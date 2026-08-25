@@ -15,6 +15,9 @@ import { getReadingTime } from "@/shared/lib/reading-time";
 const getPostCached = cache((slug: string) => getPostBySlug(slug));
 const getAdjacentPostsCached = cache((slug: string) => getAdjacentPosts(slug));
 
+// generateStaticParams에 없는 slug는 렌더링하지 않고 404를 반환한다
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   const slugs = getAllPostSlugs();
   return slugs.map((slug) => ({
@@ -29,6 +32,10 @@ export async function generateMetadata({
 }) {
   const { slug } = await params;
   const post = getPostCached(slug);
+
+  if (!post) {
+    return {};
+  }
 
   return {
     title: post.title,
@@ -83,12 +90,12 @@ export default async function PostPage({
 }) {
   const { slug } = await params;
   const post = getPostCached(slug);
-  const [previousPost, nextPost] = getAdjacentPostsCached(slug);
 
   if (!post) {
     notFound();
   }
 
+  const [previousPost, nextPost] = getAdjacentPostsCached(slug);
   const readingTime = getReadingTime(post.content);
 
   const jsonLd = {
