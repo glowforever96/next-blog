@@ -10,7 +10,8 @@ export default function HeaderClient() {
   const isHideMenu =
     pathname === "/about" ||
     pathname.includes("/posts/") ||
-    pathname === "/guestbook";
+    pathname === "/guestbook" ||
+    pathname === "/archive";
   const { toggle } = useSidebarStore();
 
   return (
