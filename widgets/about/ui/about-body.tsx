@@ -30,25 +30,19 @@ function SectionHeading({
 
 const galaxyShots = [
   { src: "/images/projects/galaxy-home.webp", alt: "태양계 전경과 은하수" },
+  { src: "/images/projects/galaxy-jupiter.webp", alt: "목성" },
+  { src: "/images/projects/galaxy-saturn.webp", alt: "토성과 고리" },
   {
-    src: "/images/projects/galaxy-saturn.webp",
-    alt: "고리 그림자가 드리운 토성",
+    src: "/images/projects/galaxy-europa.webp",
+    alt: "유로파 얼음 지평선 위로 떠오른 목성",
   },
   {
-    src: "/images/projects/galaxy-voyager.webp",
-    alt: "성간 공간의 보이저 1호",
+    src: "/images/projects/galaxy-io-eclipse.webp",
+    alt: "이오에서 본 목성 일식",
   },
   {
-    src: "/images/projects/galaxy-milkyway.webp",
-    alt: "달 표면 위로 떠오른 은하수",
-  },
-  {
-    src: "/images/projects/galaxy-apollo11.webp",
-    alt: "달 표면 아폴로 11 착륙 지점",
-  },
-  {
-    src: "/images/projects/galaxy-olympus.webp",
-    alt: "화성 올림푸스 몬스 정상의 실측 지형",
+    src: "/images/projects/galaxy-callisto.webp",
+    alt: "칼리스토에서 본 은하수",
   },
   { src: "/images/projects/galaxy-giza.webp", alt: "스핑크스와 기자 피라미드" },
   {
@@ -56,10 +50,13 @@ const galaxyShots = [
     alt: "아이슬란드 키르큐페들의 오로라",
   },
   {
+    src: "/images/projects/galaxy-seoul-aerial.webp",
+    alt: "하늘에서 본 광화문광장과 북악산",
+  },
+  {
     src: "/images/projects/galaxy-seoul.webp",
     alt: "세종대왕상 너머 광화문광장",
   },
-  { src: "/images/projects/galaxy-seoul-night.webp", alt: "광화문광장의 밤" },
   {
     src: "/images/projects/galaxy-palace-aerial.webp",
     alt: "실측 스캔으로 재현한 경복궁 조감",
@@ -67,6 +64,21 @@ const galaxyShots = [
   {
     src: "/images/projects/galaxy-gyeongbokgung.webp",
     alt: "근정전과 조정 박석",
+  },
+];
+
+const projectLinks = [
+  {
+    label: "Galaxy Explorer",
+    href: "https://galaxy-explorer-kappa.vercel.app",
+    description:
+      "아폴로 11 기지, 올림푸스 몬스, 이오의 화산부터 에베레스트·기자 피라미드·아이슬란드 오로라까지 30여 곳의 명소에 내려설 수 있고, 실제 날짜의 일식·월식과 대기 산란, 보이저 1호가 찍은 창백한 푸른 점까지 재현했습니다.",
+  },
+  {
+    label: "Seoul Explorer",
+    href: "https://seoul-explorer.vercel.app",
+    description:
+      "Galaxy Explorer의 서울 착륙지를 떼어 따로 제작한 서울 버전입니다. OpenStreetMap과 국가유산청 실측 스캔으로 다시 지은 광화문광장과 경복궁, 지하철역까지 걸어서 둘러볼 수 있습니다.",
   },
 ];
 
@@ -87,35 +99,29 @@ function ToyProject() {
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">
         태양계부터 은하까지 스크롤 하나로 끊김 없이 탐험하는 3D 우주 웹앱입니다.
-        실제 궤도·항성 데이터로 천체를 배치했고, 행성에 착륙해 1인칭으로 걸어
-        다닐 수 있습니다. 서울에 내려서면 OpenStreetMap과 국가유산청 실측
-        스캔으로 다시 지은 광화문광장과 경복궁이 펼쳐집니다.
+        실제 궤도·항성 데이터로 천체를 배치했고, 행성의 유명 스팟에 착륙해
+        1인칭으로 걸어 다닐 수 있습니다.
       </p>
       <p className="border-l-2 border-blue-500 pl-3 text-sm font-medium text-foreground dark:border-blue-400">
         전부 Claude Code를 사용해 제작했습니다. 코드를 직접 쓰는 대신 무엇을
         만들지 정하고, 결과를 확인하고 다듬는 데 집중했습니다.
       </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {[
-          {
-            label: "Galaxy Explorer",
-            href: "https://galaxy-explorer-kappa.vercel.app",
-          },
-          {
-            label: "Seoul Explorer",
-            href: "https://seoul-explorer.vercel.app",
-          },
-        ].map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-blue-500 transition-colors hover:underline dark:text-blue-400"
-          >
-            {link.label}
-            <ExternalLink size={14} />
-          </a>
+      <div className="flex flex-col gap-4 text-sm">
+        {projectLinks.map((link) => (
+          <div key={link.href} className="flex flex-col gap-1">
+            <a
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1 font-semibold text-blue-500 transition-colors hover:underline dark:text-blue-400"
+            >
+              {link.label}
+              <ExternalLink size={14} />
+            </a>
+            <p className="leading-relaxed text-muted-foreground">
+              {link.description}
+            </p>
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
