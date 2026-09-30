@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { ExternalLink } from "lucide-react";
+import ScreenshotGallery from "./screenshot-gallery";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 
@@ -30,11 +31,14 @@ function SectionHeading({
 
 const galaxyShots = [
   { src: "/images/projects/galaxy-home.webp", alt: "태양계 궤도와 인터페이스" },
-  { src: "/images/projects/galaxy-jupiter.webp", alt: "목성" },
+  {
+    src: "/images/projects/galaxy-milkyway.webp",
+    alt: "위에서 내려다본 우리은하",
+  },
   { src: "/images/projects/galaxy-saturn.webp", alt: "토성과 고리" },
   {
     src: "/images/projects/galaxy-moon-earth.webp",
-    alt: "달 남극에서 본 지구와 은하수",
+    alt: "달 능선 위로 떠오른 지구",
   },
   {
     src: "/images/projects/galaxy-io-jupiter.webp",
@@ -124,22 +128,7 @@ function ToyProject() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {galaxyShots.map((shot) => (
-          <div
-            key={shot.src}
-            className="relative aspect-video overflow-hidden rounded-lg border border-border"
-          >
-            <Image
-              src={shot.src}
-              alt={shot.alt}
-              fill
-              sizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, 100vw"
-              className="object-cover"
-            />
-          </div>
-        ))}
-      </div>
+      <ScreenshotGallery shots={galaxyShots} />
     </div>
   );
 }
