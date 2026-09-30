@@ -29,20 +29,20 @@ function SectionHeading({
 }
 
 const galaxyShots = [
-  {
-    src: "/images/projects/galaxy-warp.webp",
-    alt: "투어 모드 우주선의 하이퍼드라이브",
-  },
-  { src: "/images/projects/galaxy-home.webp", alt: "태양계 전경과 은하수" },
+  { src: "/images/projects/galaxy-home.webp", alt: "태양계 궤도와 인터페이스" },
   { src: "/images/projects/galaxy-jupiter.webp", alt: "목성" },
   { src: "/images/projects/galaxy-saturn.webp", alt: "토성과 고리" },
   {
-    src: "/images/projects/galaxy-europa.webp",
-    alt: "유로파 얼음 지평선 위로 떠오른 목성",
+    src: "/images/projects/galaxy-moon-earth.webp",
+    alt: "달 남극에서 본 지구와 은하수",
   },
   {
-    src: "/images/projects/galaxy-callisto.webp",
-    alt: "칼리스토에서 본 은하수",
+    src: "/images/projects/galaxy-io-jupiter.webp",
+    alt: "이오의 유황 평원 위로 뜬 목성",
+  },
+  {
+    src: "/images/projects/galaxy-warp.webp",
+    alt: "투어 모드 우주선의 하이퍼드라이브",
   },
   { src: "/images/projects/galaxy-giza.webp", alt: "스핑크스와 기자 피라미드" },
   {
