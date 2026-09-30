@@ -35,17 +35,31 @@ const galaxyShots = [
     alt: "고리 그림자가 드리운 토성",
   },
   {
-    src: "/images/projects/galaxy-apollo11.webp",
-    alt: "달 표면 아폴로 11 착륙 지점",
+    src: "/images/projects/galaxy-voyager.webp",
+    alt: "성간 공간의 보이저 1호",
   },
   {
-    src: "/images/projects/galaxy-flight.webp",
-    alt: "레이마칭 대기 산란으로 그린 지구",
+    src: "/images/projects/galaxy-milkyway.webp",
+    alt: "달 표면 위로 떠오른 은하수",
+  },
+  {
+    src: "/images/projects/galaxy-apollo11.webp",
+    alt: "달 표면 아폴로 11 착륙 지점",
   },
   {
     src: "/images/projects/galaxy-olympus.webp",
     alt: "화성 올림푸스 몬스 정상의 실측 지형",
   },
+  { src: "/images/projects/galaxy-giza.webp", alt: "스핑크스와 기자 피라미드" },
+  {
+    src: "/images/projects/galaxy-aurora.webp",
+    alt: "아이슬란드 키르큐페들의 오로라",
+  },
+  {
+    src: "/images/projects/galaxy-seoul.webp",
+    alt: "세종대왕상 너머 광화문광장",
+  },
+  { src: "/images/projects/galaxy-seoul-night.webp", alt: "광화문광장의 밤" },
   {
     src: "/images/projects/galaxy-palace-aerial.webp",
     alt: "실측 스캔으로 재현한 경복궁 조감",
@@ -53,10 +67,6 @@ const galaxyShots = [
   {
     src: "/images/projects/galaxy-gyeongbokgung.webp",
     alt: "근정전과 조정 박석",
-  },
-  {
-    src: "/images/projects/galaxy-gwanghwamun-night.webp",
-    alt: "경관조명을 받은 광화문의 밤",
   },
 ];
 
@@ -82,8 +92,8 @@ function ToyProject() {
         스캔으로 다시 지은 광화문광장과 경복궁이 펼쳐집니다.
       </p>
       <p className="border-l-2 border-blue-500 pl-3 text-sm font-medium text-foreground dark:border-blue-400">
-        기획부터 구현까지 전부 AI와 대화하며 바이브 코딩으로 만들었습니다.
-        코드는 한 줄도 직접 보지 않았습니다.
+        전부 Claude Code를 사용해 제작했습니다. 코드를 직접 쓰는 대신 무엇을
+        만들지 정하고, 결과를 확인하고 다듬는 데 집중했습니다.
       </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {[
