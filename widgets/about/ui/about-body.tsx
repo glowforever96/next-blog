@@ -39,8 +39,24 @@ const galaxyShots = [
     alt: "달 표면 아폴로 11 착륙 지점",
   },
   {
+    src: "/images/projects/galaxy-flight.webp",
+    alt: "레이마칭 대기 산란으로 그린 지구",
+  },
+  {
+    src: "/images/projects/galaxy-olympus.webp",
+    alt: "화성 올림푸스 몬스 정상의 실측 지형",
+  },
+  {
     src: "/images/projects/galaxy-palace-aerial.webp",
     alt: "실측 스캔으로 재현한 경복궁 조감",
+  },
+  {
+    src: "/images/projects/galaxy-gyeongbokgung.webp",
+    alt: "근정전과 조정 박석",
+  },
+  {
+    src: "/images/projects/galaxy-gwanghwamun-night.webp",
+    alt: "경관조명을 받은 광화문의 밤",
   },
 ];
 
@@ -65,13 +81,20 @@ function ToyProject() {
         다닐 수 있습니다. 서울에 내려서면 OpenStreetMap과 국가유산청 실측
         스캔으로 다시 지은 광화문광장과 경복궁이 펼쳐집니다.
       </p>
+      <p className="border-l-2 border-blue-500 pl-3 text-sm font-medium text-foreground dark:border-blue-400">
+        기획부터 구현까지 전부 AI와 대화하며 바이브 코딩으로 만들었습니다.
+        코드는 한 줄도 직접 보지 않았습니다.
+      </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {[
           {
             label: "Galaxy Explorer",
             href: "https://galaxy-explorer-kappa.vercel.app",
           },
-          { label: "서울판", href: "https://seoul-explorer.vercel.app" },
+          {
+            label: "Seoul Explorer",
+            href: "https://seoul-explorer.vercel.app",
+          },
         ].map((link) => (
           <a
             key={link.href}
@@ -227,10 +250,23 @@ export default function AboutBody() {
     },
   ];
 
-  const timelineSections = [
-    { index: "03", title: "EXPERIENCE", entries: experience },
-    { index: "04", title: "OPEN SOURCE", entries: openSource },
-    { index: "05", title: "EDUCATION", entries: education },
+  const sections = [
+    {
+      index: "02",
+      title: "EXPERIENCE",
+      content: <Timeline entries={experience} />,
+    },
+    {
+      index: "03",
+      title: "OPEN SOURCE",
+      content: <Timeline entries={openSource} />,
+    },
+    { index: "04", title: "TOY PROJECT", content: <ToyProject /> },
+    {
+      index: "05",
+      title: "EDUCATION",
+      content: <Timeline entries={education} />,
+    },
   ];
 
   return (
@@ -264,15 +300,10 @@ export default function AboutBody() {
         </div>
       </section>
 
-      <section>
-        <SectionHeading index="02">TOY PROJECT</SectionHeading>
-        <ToyProject />
-      </section>
-
-      {timelineSections.map((section) => (
+      {sections.map((section) => (
         <section key={section.index}>
           <SectionHeading index={section.index}>{section.title}</SectionHeading>
-          <Timeline entries={section.entries} />
+          {section.content}
         </section>
       ))}
     </div>
