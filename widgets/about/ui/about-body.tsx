@@ -29,16 +29,16 @@ function SectionHeading({
 }
 
 const galaxyShots = [
+  {
+    src: "/images/projects/galaxy-warp.webp",
+    alt: "투어 모드 우주선의 하이퍼드라이브",
+  },
   { src: "/images/projects/galaxy-home.webp", alt: "태양계 전경과 은하수" },
   { src: "/images/projects/galaxy-jupiter.webp", alt: "목성" },
   { src: "/images/projects/galaxy-saturn.webp", alt: "토성과 고리" },
   {
     src: "/images/projects/galaxy-europa.webp",
     alt: "유로파 얼음 지평선 위로 떠오른 목성",
-  },
-  {
-    src: "/images/projects/galaxy-io-eclipse.webp",
-    alt: "이오에서 본 목성 일식",
   },
   {
     src: "/images/projects/galaxy-callisto.webp",
