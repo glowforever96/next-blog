@@ -1,11 +1,7 @@
 import Image from "next/image";
+import { ExternalLink } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 
 interface TimelineEntry {
   title: React.ReactNode;
@@ -28,6 +24,83 @@ function SectionHeading({
       </span>
       <h2 className="text-2xl font-extrabold text-foreground">{children}</h2>
       <span aria-hidden className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+const galaxyShots = [
+  { src: "/images/projects/galaxy-home.webp", alt: "태양계 전경과 은하수" },
+  {
+    src: "/images/projects/galaxy-saturn.webp",
+    alt: "고리 그림자가 드리운 토성",
+  },
+  {
+    src: "/images/projects/galaxy-apollo11.webp",
+    alt: "달 표면 아폴로 11 착륙 지점",
+  },
+  {
+    src: "/images/projects/galaxy-palace-aerial.webp",
+    alt: "실측 스캔으로 재현한 경복궁 조감",
+  },
+];
+
+function ToyProject() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-lg font-bold text-foreground">
+          Galaxy Explorer
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {["Three.js", "TypeScript", "WebGL", "Vite"].map((tech) => (
+            <Badge key={tech} variant="secondary" className="px-2.5 py-0.5">
+              {tech}
+            </Badge>
+          ))}
+        </div>
+      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        태양계부터 은하까지 스크롤 하나로 끊김 없이 탐험하는 3D 우주 웹앱입니다.
+        실제 궤도·항성 데이터로 천체를 배치했고, 행성에 착륙해 1인칭으로 걸어
+        다닐 수 있습니다. 서울에 내려서면 OpenStreetMap과 국가유산청 실측
+        스캔으로 다시 지은 광화문광장과 경복궁이 펼쳐집니다.
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {[
+          {
+            label: "Galaxy Explorer",
+            href: "https://galaxy-explorer-kappa.vercel.app",
+          },
+          { label: "서울판", href: "https://seoul-explorer.vercel.app" },
+        ].map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-blue-500 transition-colors hover:underline dark:text-blue-400"
+          >
+            {link.label}
+            <ExternalLink size={14} />
+          </a>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {galaxyShots.map((shot) => (
+          <div
+            key={shot.src}
+            className="relative aspect-video overflow-hidden rounded-lg border border-border"
+          >
+            <Image
+              src={shot.src}
+              alt={shot.alt}
+              fill
+              sizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, 100vw"
+              className="object-cover"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -155,9 +228,9 @@ export default function AboutBody() {
   ];
 
   const timelineSections = [
-    { index: "02", title: "EXPERIENCE", entries: experience },
-    { index: "03", title: "OPEN SOURCE", entries: openSource },
-    { index: "04", title: "EDUCATION", entries: education },
+    { index: "03", title: "EXPERIENCE", entries: experience },
+    { index: "04", title: "OPEN SOURCE", entries: openSource },
+    { index: "05", title: "EDUCATION", entries: education },
   ];
 
   return (
@@ -191,11 +264,14 @@ export default function AboutBody() {
         </div>
       </section>
 
+      <section>
+        <SectionHeading index="02">TOY PROJECT</SectionHeading>
+        <ToyProject />
+      </section>
+
       {timelineSections.map((section) => (
         <section key={section.index}>
-          <SectionHeading index={section.index}>
-            {section.title}
-          </SectionHeading>
+          <SectionHeading index={section.index}>{section.title}</SectionHeading>
           <Timeline entries={section.entries} />
         </section>
       ))}
