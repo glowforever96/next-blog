@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   transpilePackages: ["next-mdx-remote"],
   images: {
+    // About 라이트박스는 2400px 원본을 q90으로 서빙(기본 q75는 확대 시 뭉개짐)
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",

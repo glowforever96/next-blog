@@ -59,6 +59,7 @@ export default function ScreenshotGallery({ shots }: { shots: Shot[] }) {
                   alt={current.alt}
                   fill
                   sizes="(min-width: 1200px) 1152px, 100vw"
+                  quality={90}
                   className="object-contain"
                 />
               </div>
