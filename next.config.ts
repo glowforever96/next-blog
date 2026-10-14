@@ -15,6 +15,22 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async headers() {
+    return [
+      // 포스트 썸네일은 파일명 변경으로만 갱신한다(동일 파일명 덮어쓰기 금지).
+      // 원본에 긴 Cache-Control을 주면 /_next/image 최적화 결과도 이 max-age를 따라간다
+      // (기본 minimumCacheTTL 4시간 대신 1년).
+      {
+        source: "/images/thumbnails/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       // 오타 slug로 색인된 URL을 유지하기 위한 영구 리다이렉트

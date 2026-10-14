@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getSidebarData } from "@/entities/post/lib/sidebar";
 import Sidebar from "@/widgets/sidebar/ui/sidebar";
 import PostsList from "@/widgets/posts-list/ui/posts-list";
-import { getAllPosts } from "@/entities/post/api/mdx";
+import { getSearchPosts } from "@/entities/post/api/mdx";
 import { SITE_URL } from "@/shared/lib/site";
 
 interface HomeProps {
@@ -31,7 +31,7 @@ export async function generateMetadata({
 export default async function Home({ searchParams }: HomeProps) {
   const params = await searchParams;
   const { sidebarData, categoryCounts } = getSidebarData();
-  const posts = getAllPosts();
+  const posts = getSearchPosts();
 
   return (
     <div className="gap-0 md:flex md:gap-8">

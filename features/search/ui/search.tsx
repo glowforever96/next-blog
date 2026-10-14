@@ -2,7 +2,7 @@
 
 import { FileTextIcon } from "lucide-react";
 import useSearchPost from "@/features/search/model/useSearchPost";
-import { BlogPost } from "@/shared/types";
+import { SearchPost } from "@/shared/types";
 import { Button } from "@/shared/ui/button";
 import {
   CommandDialog,
@@ -15,7 +15,7 @@ import {
 import { Kbd } from "@/shared/ui/kbd";
 
 interface SearchProps {
-  posts: BlogPost[];
+  posts: SearchPost[];
   isMobileView?: boolean;
 }
 

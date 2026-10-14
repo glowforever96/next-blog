@@ -11,6 +11,9 @@ interface BlogPost {
   content: string;
 }
 
+// 검색(⌘K)에 필요한 필드만 — 본문(content)을 클라이언트로 보내지 않기 위함
+type SearchPost = Pick<BlogPost, "slug" | "title" | "description">;
+
 interface Guestbook {
   id: number;
   name: string;
@@ -20,4 +23,4 @@ interface Guestbook {
   createdAt: string;
 }
 
-export type { BlogPost, Guestbook };
+export type { BlogPost, SearchPost, Guestbook };

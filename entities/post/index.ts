@@ -4,6 +4,7 @@
 // api
 export {
   getAllPosts,
+  getSearchPosts,
   getPostBySlug,
   getAllPostSlugs,
   getAdjacentPosts,

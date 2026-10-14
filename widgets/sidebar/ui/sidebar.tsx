@@ -11,12 +11,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/shared/ui/collapsible";
-import { BlogPost } from "@/shared/types";
+import { SearchPost } from "@/shared/types";
 
 interface SidebarProps {
   sidebarData: SidebarData;
   categoryCounts: { [key: string]: number };
-  posts: BlogPost[];
+  posts: SearchPost[];
 }
 
 interface SidebarContentProps {

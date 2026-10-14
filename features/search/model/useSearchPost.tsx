@@ -1,8 +1,8 @@
-import { BlogPost } from "@/shared/types";
+import { SearchPost } from "@/shared/types";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-const useSearchPost = (posts: BlogPost[]) => {
+const useSearchPost = (posts: SearchPost[]) => {
   const router = useRouter();
 
   const [open, setOpen] = useState(false);

@@ -45,7 +45,12 @@ export default function PostsList({ searchParams }: PostsListProps) {
       >
         {posts.map((post, index) => (
           <li key={post.slug} className="contents">
-            <PostCard post={post} priority={index < 4} />
+            <PostCard
+              post={post}
+              imageLoading={
+                index === 0 ? "preload" : index < 4 ? "eager" : "lazy"
+              }
+            />
           </li>
         ))}
       </ul>

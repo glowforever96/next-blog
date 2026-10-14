@@ -2,7 +2,7 @@ import Link from "next/link";
 import HeaderClient from "@/widgets/header/ui/header-client";
 import ProgressClient from "@/features/reading-progress/ui/progress-client";
 import Search from "@/features/search/ui/search";
-import { getAllPosts } from "@/entities/post/api/mdx";
+import { getSearchPosts } from "@/entities/post/api/mdx";
 
 const navItems = [
   {
@@ -23,7 +23,7 @@ const navItems = [
 ];
 
 export default function Header() {
-  const posts = getAllPosts();
+  const posts = getSearchPosts();
 
   return (
     <header className="fixed w-full border-b backdrop-blur-xl bg-background/50 z-10 border-border">

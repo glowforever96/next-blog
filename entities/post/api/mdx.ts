@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
-import { BlogPost } from "@/shared/types";
+import { BlogPost, SearchPost } from "@/shared/types";
 import { getTime } from "date-fns";
 
 const postsDirectory = path.join(process.cwd(), "content/posts");
@@ -50,6 +50,16 @@ export function getAllPosts(category?: string, tag?: string): BlogPost[] {
   }
 
   return filteredPosts.sort((a, b) => getTime(b.date) - getTime(a.date));
+}
+
+// 검색 다이얼로그(클라이언트)에 넘길 최소 필드. 본문을 포함하면 모든 페이지의
+// RSC 페이로드에 전체 글 본문이 실려 HTML이 수백 KB 커진다.
+export function getSearchPosts(): SearchPost[] {
+  return getAllPosts().map(({ slug, title, description }) => ({
+    slug,
+    title,
+    description,
+  }));
 }
 
 export function getPostBySlug(slug: string): BlogPost | null {
