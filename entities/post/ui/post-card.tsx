@@ -12,10 +12,10 @@ interface PostCardProps {
   imageLoading?: ImageLoading;
 }
 
-// 카드 썸네일 폭: 모바일 전폭, md는 사이드바(208px)·간격을 뺀 2열(실측 31~36vw), lg는 고정 256px.
+// 카드 썸네일 폭: 모바일 전폭, md는 사이드바(208px)·간격을 뺀 2열(실측 31~36vw), lg는 고정 320px.
 // calc()를 쓰면 Next가 vw를 파싱하지 못해 srcset 후보가 32w~3840w 전부로 늘어나므로 vw 단위만 사용.
 const THUMBNAIL_SIZES =
-  "(max-width: 767px) 100vw, (max-width: 1023px) 36vw, 256px";
+  "(max-width: 767px) 100vw, (max-width: 1023px) 36vw, 320px";
 
 export default function PostCard({
   post,
@@ -28,7 +28,10 @@ export default function PostCard({
       className="bg-card rounded-sm overflow-hidden shadow-sm border border-border"
     >
       <article className="flex flex-col lg:flex-row">
-        <div className="relative w-full lg:w-64 aspect-video bg-muted">
+        {/* lg에서 카드가 가로 flex라 기본 stretch면 박스가 텍스트 높이까지 늘어나
+            aspect-video가 무시되고 좌우가 크게 잘린다(실측 24%). self-center로
+            16:9(320x180)를 고정하고, 텍스트가 더 긴 카드는 위아래 여백으로 흡수 */}
+        <div className="relative w-full lg:w-80 lg:self-center aspect-video bg-muted">
           <Image
             src={post.thumbnail}
             alt={post.title}
