@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   htmlLimitedBots: /.*/,
   cacheComponents: false,
   transpilePackages: ["next-mdx-remote"],
+  experimental: {
+    // next dev/build 시 새 메이저·마이너 릴리스가 있으면 알려주고,
+    // `next upgrade --agent` 기본 정책으로 latest를 사용한다 (16.4+)
+    agentUpgrade: "latest",
+  },
   images: {
     // About 라이트박스는 2400px 원본을 q90으로 서빙(기본 q75는 확대 시 뭉개짐)
     qualities: [75, 90],
