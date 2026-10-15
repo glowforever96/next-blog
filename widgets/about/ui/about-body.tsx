@@ -70,24 +70,24 @@ const galaxyShots = [
     alt: "불 켜진 세종대로와 경복궁 야경",
   },
   {
+    src: "/images/projects/galaxy-cityhall-aerial.webp",
+    alt: "서울광장과 덕수궁, 서울시청 조감",
+  },
+  {
+    src: "/images/projects/galaxy-cityhall-snow.webp",
+    alt: "눈 내리는 서울광장과 서울시청",
+  },
+  {
+    src: "/images/projects/galaxy-cheonggye-spring.webp",
+    alt: "벚꽃 핀 봄날의 청계광장",
+  },
+  {
     src: "/images/projects/galaxy-palace-aerial.webp",
     alt: "실측 스캔으로 재현한 경복궁 조감",
   },
   {
-    src: "/images/projects/galaxy-palace-snow.webp",
-    alt: "눈 덮인 겨울 경복궁 조감",
-  },
-  {
     src: "/images/projects/galaxy-gyeongbokgung.webp",
     alt: "근정전과 조정 박석",
-  },
-  {
-    src: "/images/projects/galaxy-gyeongbokgung-snow.webp",
-    alt: "눈 내리는 근정전 조정",
-  },
-  {
-    src: "/images/projects/galaxy-gyeonghoeru-spring.webp",
-    alt: "벚꽃 핀 봄날의 경회루",
   },
   {
     src: "/images/projects/galaxy-subway-platform.webp",
